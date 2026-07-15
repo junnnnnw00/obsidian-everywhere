@@ -1,0 +1,46 @@
+{
+  "name": "obsidian-everywhere",
+  "version": "0.1.0",
+  "description": "MCP server that exposes an Obsidian vault as a knowledge graph to every Claude client.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "obsidian-everywhere": "./dist/cli.js",
+    "obsidian-everywhere-http": "./dist/http-cli.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev:stdio": "tsx src/cli.ts",
+    "dev:http": "tsx src/http-cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "better-sqlite3": "^11.9.1",
+    "chokidar": "^4.0.3",
+    "express": "^4.21.2",
+    "gray-matter": "^4.0.3",
+    "graphology": "^0.26.0",
+    "graphology-metrics": "^2.3.1",
+    "graphology-shortest-path": "^2.1.0",
+    "nanoid": "^5.1.5",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.13.5",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.7"
+  }
+}

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.log
+.obsidian-everywhere/
+.DS_Store
+coverage/
+*.tsbuildinfo
+.env
