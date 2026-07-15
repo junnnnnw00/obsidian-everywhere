@@ -112,3 +112,36 @@ tools/list: 10 tools -> vault_overview, search_notes, read_note, get_backlinks,
 vault_overview call succeeded: # Vault Overview
 contains Hub Note reference: true
 ```
+
+## 2026-07-15 21:26 — Phase 3 complete
+
+- `src/http/app.ts`: Streamable HTTP transport (`StreamableHTTPServerTransport`
+  from the SDK) mounted at `/mcp`, gated by a static bearer token middleware.
+  One transport + one `McpServer` instance per session, keyed by
+  `Mcp-Session-Id` (SDK's stateful-session pattern); session map cleans up
+  on transport close. `/healthz` for basic liveness checks.
+- `src/http-cli.ts`: HTTP entrypoint (`obsidian-everywhere-http` bin), reads
+  `OBSIDIAN_VAULT_PATH`/`OBSIDIAN_EVERYWHERE_DB`/`OBSIDIAN_EVERYWHERE_TOKEN`/`PORT`.
+  Refuses to start without a token configured.
+- Gate evidence — real HTTP integration test suite (`src/http/app.test.ts`,
+  actual `fetch()` against a real listening `http.Server`, no mocking) plus
+  a literal `curl` sequence against the built HTTP CLI:
+
+```
+$ npm test  (src/http/app.test.ts, 4 tests)
+✓ rejects requests with no bearer token (401)
+✓ rejects requests with an invalid bearer token (401)
+✓ initialize -> notifications/initialized -> tools/list -> tools/call ->
+  DELETE session -> reuse of deleted session id (404)
+✓ rejects a non-initialize request with no session id (400)
+
+$ curl sequence against `node dist/http-cli.js <fixture-vault>` on :8934
+1. no token                -> 401
+2. wrong token              -> 401
+3. initialize (real token)  -> 200, protocolVersion 2025-11-25, Mcp-Session-Id header present
+4. notifications/initialized -> 202
+5. tools/list                -> 200, includes vault_overview ... get_context_bundle ...
+6. tools/call vault_overview  -> 200, "# Vault Overview ... Hub notes (by PageRank) ..."
+```
+
+Full suite after Phase 3: `Test Files 8 passed (8)  Tests 67 passed (67)`.
