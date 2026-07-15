@@ -74,3 +74,41 @@ Two real bugs caught and fixed during this phase (not just fixture typos):
 2. Initial `computeHash` design intent (mtime+hash) — implemented sha1 of
    full content for markdown (needed for parsing anyway) and a cheap
    size+mtime hash for non-markdown attachments to avoid reading binaries.
+
+## 2026-07-15 21:24 — Phase 2 complete
+
+- All 10 v0.1 tools implemented (`src/mcp/tools.ts`) over the `VaultEngine`:
+  `vault_overview`, `search_notes`, `read_note`, `get_backlinks`,
+  `get_neighborhood`, `get_context_bundle`, `list_tags`, `get_notes_by_tag`,
+  `find_orphans`, `find_unresolved`. All registered with
+  `annotations: {readOnlyHint: true, openWorldHint: false}` in
+  `src/mcp/server.ts`. User-supplied note references (path/title/alias) are
+  resolved via `resolveNoteArg`, which reuses the exact same
+  `vault/resolve.ts` logic links use internally.
+- `get_context_bundle` packs the center note + 1-hop neighbors (sorted by
+  backlink count, then recency) into a token budget using a cheap chars/4
+  estimator for packing decisions, verified against a real BPE tokenizer
+  (`gpt-tokenizer`, devDependency) in tests.
+- `src/cli.ts`: stdio entrypoint. Resolves vault path from arg or
+  `OBSIDIAN_VAULT_PATH`, index db path from `OBSIDIAN_EVERYWHERE_DB` (default
+  `<vault>/.obsidian-everywhere/index.db`), runs `VaultEngine.init()` +
+  `.watch()`, connects `StdioServerTransport`, handles SIGINT/SIGTERM.
+- Gate evidence — two independent verifications, both against real (not
+  mocked) server code:
+
+```
+$ npm test  (src/mcp/server.test.ts, 13 tests, via InMemoryTransport)
+✓ lists all 10 tools, each read-only
+✓ vault_overview / search_notes / read_note (incl. heading-scoped read)
+✓ get_backlinks / get_neighborhood
+✓ get_context_bundle resolves via alias; respects token budget (checked
+  with gpt-tokenizer, not the tool's own heuristic); grows with a larger budget
+✓ list_tags / get_notes_by_tag / find_orphans / find_unresolved
+Test Files  7 passed (7)   Tests  63 passed (63)
+
+$ node scratch-smoke.mjs <fixture-vault> dist/cli.js   (real subprocess, real stdio transport)
+tools/list: 10 tools -> vault_overview, search_notes, read_note, get_backlinks,
+  get_neighborhood, get_context_bundle, list_tags, get_notes_by_tag, find_orphans, find_unresolved
+vault_overview call succeeded: # Vault Overview
+contains Hub Note reference: true
+```

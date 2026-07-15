@@ -48,3 +48,8 @@ Format: Decision / Reason / Alternatives considered
 **Decision:** `files_fts` uses SQLite's built-in `unicode61` tokenizer.
 **Reason:** No extra native dependency required (unlike ICU-based tokenizers). Works correctly for our Korean fixtures because Korean note content in this vault is space-delimited at the word level, matching unicode61's word-boundary tokenization.
 **Limitation (documented, not fixed for v0.1):** unicode61 does not do CJK n-gram segmentation, so a Korean *substring* query spanning less than a full space-delimited token (e.g. matching only part of a compound word) will not be found. Full CJK search would need `simple`/`icu` tokenizers or a trigram index — out of scope for v0.1.
+
+## D10. New dependency: `gpt-tokenizer` (devDependency only)
+**Decision:** Added `gpt-tokenizer` as a devDependency, used only in `src/mcp/server.test.ts` to verify `get_context_bundle` actually respects its token budget.
+**Reason:** Spec §Phase 2 gate explicitly requires checking the token budget "tiktoken 근사치로 카운트" (tiktoken-approximate count). `gpt-tokenizer` is a pure-JS BPE tokenizer (no WASM/native build step, unlike `tiktoken`), so it's a lighter-weight way to satisfy that gate requirement without adding a runtime dependency — the tool's actual packing logic still uses a cheap char/4 heuristic (`src/mcp/format.ts`) so token counting stays fast on every call.
+**Alternatives:** `tiktoken` (official, WASM-based) — heavier install/build footprint for a devDependency-only use case; rejected in favor of the pure-JS option.

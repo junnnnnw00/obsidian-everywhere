@@ -232,6 +232,14 @@ export class VaultDB {
       .all(source.id) as (BacklinkRow & { targetPath: string | null; targetRaw: string })[];
   }
 
+  getHeadingsForFile(fileId: number): { level: number; text: string; line: number }[] {
+    return this.db.prepare("SELECT level, text, line FROM headings WHERE file_id = ? ORDER BY line").all(fileId) as {
+      level: number;
+      text: string;
+      line: number;
+    }[];
+  }
+
   getTagsForFile(fileId: number): { tag: string; source: string }[] {
     return this.db.prepare("SELECT tag, source FROM tags WHERE file_id = ?").all(fileId) as {
       tag: string;

@@ -28,10 +28,10 @@
     "better-sqlite3": "^11.9.1",
     "chokidar": "^4.0.3",
     "express": "^4.21.2",
-    "gray-matter": "^4.0.3",
     "graphology": "^0.26.0",
     "graphology-metrics": "^2.3.1",
     "graphology-shortest-path": "^2.1.0",
+    "gray-matter": "^4.0.3",
     "nanoid": "^5.1.5",
     "zod": "^3.24.2"
   },
@@ -39,6 +39,7 @@
     "@types/better-sqlite3": "^7.6.12",
     "@types/express": "^4.17.21",
     "@types/node": "^22.13.5",
+    "gpt-tokenizer": "^3.4.0",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3",
     "vitest": "^3.0.7"
