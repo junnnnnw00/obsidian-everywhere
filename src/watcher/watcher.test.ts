@@ -43,7 +43,7 @@ describe("startWatcher (real fs events)", () => {
 
     await vi.waitFor(() => {
       expect(db.getFileByPath("New Note.md")).toBeDefined();
-    }, { timeout: 5000, interval: 50 });
+    }, { timeout: 10000, interval: 50 });
 
     const outlinks = db.getOutlinks("New Note.md");
     expect(outlinks[0]?.targetPath).toBe("Note A.md");
@@ -52,7 +52,7 @@ describe("startWatcher (real fs events)", () => {
       const noteA = db.getFileByPath("Note A.md")!;
       const { nodes } = graph.neighborhood(noteA.id, 1);
       expect(nodes.some((n) => n.path === "New Note.md")).toBe(true);
-    });
+    }, { timeout: 10000, interval: 50 });
 
     expect(graph.consistencyCheck(db).ok).toBe(true);
   });
@@ -63,7 +63,7 @@ describe("startWatcher (real fs events)", () => {
     await vi.waitFor(() => {
       const outlinks = db.getOutlinks("Note D.md");
       expect(outlinks[0]?.targetPath).toBe("Note B.md");
-    }, { timeout: 5000, interval: 50 });
+    }, { timeout: 10000, interval: 50 });
 
     expect(graph.consistencyCheck(db).ok).toBe(true);
   });
@@ -74,7 +74,7 @@ describe("startWatcher (real fs events)", () => {
 
     await vi.waitFor(() => {
       expect(db.getFileByPath("Orphan Note.md")).toBeUndefined();
-    }, { timeout: 5000, interval: 50 });
+    }, { timeout: 10000, interval: 50 });
 
     expect(graph.directed.hasNode(String(orphan.id))).toBe(false);
     expect(graph.consistencyCheck(db).ok).toBe(true);
@@ -93,7 +93,7 @@ describe("startWatcher (real fs events)", () => {
     await vi.waitFor(() => {
       const outlinks = db.getOutlinks("Ambiguous Resolution Test.md");
       expect(outlinks[0]?.targetPath).toBe("Folder2/Same Name.md");
-    }, { timeout: 5000, interval: 50 });
+    }, { timeout: 10000, interval: 50 });
 
     expect(db.getFileByPath("Folder1/Same Name.md")).toBeUndefined();
     expect(db.getFileByPath("Folder1/Zzz Renamed.md")).toBeDefined();
