@@ -282,6 +282,86 @@ export function findOrphans(engine: VaultEngine): string {
   return lines.join("\n");
 }
 
+export interface FindPathArgs {
+  from: string;
+  to: string;
+}
+
+export function findPath(engine: VaultEngine, args: FindPathArgs): string {
+  const fromFile = resolveNoteArg(engine, args.from);
+  if (!fromFile) return `Note not found: ${args.from}`;
+  const toFile = resolveNoteArg(engine, args.to);
+  if (!toFile) return `Note not found: ${args.to}`;
+
+  const path = engine.graph.shortestPath(fromFile.id, toFile.id);
+  if (!path) return `# Path from ${fromFile.path} to ${toFile.path}\n\nNo connection found — the notes are in disconnected parts of the graph.`;
+
+  const lines: string[] = [
+    `# Path from ${fromFile.path} to ${toFile.path}`,
+    "",
+    `${path.length - 1} hop${path.length - 1 === 1 ? "" : "s"} via: ${path.map((n) => `[[${n.path}]]`).join(" → ")}`,
+    "",
+  ];
+  for (const node of path) {
+    const row = engine.db.getFileById(node.id);
+    const summary = row && row.is_markdown === 1 ? firstParagraph(row.raw_content ?? "") : "(attachment)";
+    lines.push(`## ${node.path}`, summary || "_(no content)_", "");
+  }
+  return lines.join("\n").trim();
+}
+
+export interface GetRelatedArgs {
+  path: string;
+  limit?: number;
+}
+
+function featureSet(engine: VaultEngine, fileId: number): Set<string> {
+  const features = new Set<string>();
+  for (const t of engine.db.getTagsForFile(fileId)) features.add(`tag:${t.tag}`);
+  const { nodes } = engine.graph.neighborhood(fileId, 1);
+  for (const n of nodes) {
+    if (n.id !== fileId) features.add(`node:${n.id}`);
+  }
+  return features;
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 0;
+  let intersection = 0;
+  for (const x of a) if (b.has(x)) intersection++;
+  const union = a.size + b.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+/** Similar notes via Jaccard similarity of {shared tags} ∪ {shared 1-hop neighbors} — deliberately not requiring a direct link. */
+export function getRelated(engine: VaultEngine, args: GetRelatedArgs): string {
+  const file = resolveNoteArg(engine, args.path);
+  if (!file) return `Note not found: ${args.path}`;
+  const limit = args.limit ?? 5;
+
+  const { nodes: directNeighbors } = engine.graph.neighborhood(file.id, 1);
+  const directNeighborIds = new Set(directNeighbors.map((n) => n.id));
+  const targetFeatures = featureSet(engine, file.id);
+
+  const scored = engine.db
+    .getAllFiles()
+    .filter((f) => f.is_markdown === 1 && f.id !== file.id && !directNeighborIds.has(f.id))
+    .map((f) => ({ f, score: jaccard(targetFeatures, featureSet(engine, f.id)) }))
+    .filter((r) => r.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+
+  if (scored.length === 0) {
+    return `# Related to ${file.path}\n\n_No similar notes found (based on shared tags/neighbors, excluding directly-linked notes)._`;
+  }
+
+  const lines = [`# Related to ${file.path}`, "", "_Similar by shared tags/neighbors, not direct links:_", ""];
+  for (const { f, score } of scored) {
+    lines.push(`- [[${f.path}]]${f.title ? ` — ${f.title}` : ""} (similarity ${score.toFixed(2)})`);
+  }
+  return lines.join("\n");
+}
+
 export function findUnresolved(engine: VaultEngine): string {
   const rows = engine.db.findUnresolved();
   if (rows.length === 0) return "# Unresolved Links\n\n_none — every link resolves_";

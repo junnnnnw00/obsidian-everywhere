@@ -37,16 +37,18 @@ describe("MCP stdio-layer tool server", () => {
     await engine.close();
   });
 
-  it("lists all 10 tools, each read-only", async () => {
+  it("lists all 12 tools, each read-only", async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
       "find_orphans",
+      "find_path",
       "find_unresolved",
       "get_backlinks",
       "get_context_bundle",
       "get_neighborhood",
       "get_notes_by_tag",
+      "get_related",
       "list_tags",
       "read_note",
       "search_notes",
@@ -146,6 +148,28 @@ describe("MCP stdio-layer tool server", () => {
   it("find_orphans lists the orphan fixture note", async () => {
     const text = textOf((await client.callTool({ name: "find_orphans", arguments: {} })) as any);
     expect(text).toContain("Orphan Note.md");
+  });
+
+  it("find_path finds the shortest undirected connection between two notes", async () => {
+    const text = textOf(
+      (await client.callTool({ name: "find_path", arguments: { from: "Backlink Test A", to: "Backlink Test B" } })) as any,
+    );
+    expect(text).toContain("2 hops");
+    expect(text).toContain("Hub Note.md");
+  });
+
+  it("find_path reports no connection for genuinely disconnected notes", async () => {
+    const text = textOf(
+      (await client.callTool({ name: "find_path", arguments: { from: "Orphan Note", to: "Hub Note" } })) as any,
+    );
+    expect(text).toContain("No connection found");
+  });
+
+  it("get_related surfaces tag-similar notes that aren't directly linked", async () => {
+    const text = textOf(
+      (await client.callTool({ name: "get_related", arguments: { path: "Frontmatter Test" } })) as any,
+    );
+    expect(text).toContain("Frontmatter Wikilink Test.md");
   });
 
   it("find_unresolved lists the unresolved fixture link", async () => {

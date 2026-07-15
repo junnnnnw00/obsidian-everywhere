@@ -206,3 +206,37 @@ The full `docker build && docker run` gate is left as a checklist item in
 `HANDOFF.md` §1 — this is an environment-availability gap, not unfinished
 project code. Per the spec's "don't burn the whole night on one problem"
 rule, moving on to Phase 5 rather than continuing to poll the daemon.
+(Retried the daemon again at the start of Phase 5 — still down. Leaving it
+for the final fresh-clone gate; documented as-is otherwise.)
+
+## 2026-07-16 00:24 — Phase 5: docs, CI, LICENSE, and two stretch tools
+
+- `README.md` (English): project pitch, full tool table, quickstart for
+  all three transports (Claude Code stdio, Claude Desktop config, remote
+  Tailscale bearer-token, claude.ai OAuth connector), config table, dev
+  commands.
+- `docs/architecture.md`: walks the whole engine end to end (parser →
+  resolver → SQLite → in-memory graph → watcher → orchestrator → MCP tool
+  layer → transports), pointing at real file paths and referencing the
+  DECISIONS.md entries that explain the non-obvious choices.
+- `LICENSE` (MIT), `.github/workflows/ci.yml` (build+test on Node 20.x and
+  22.x, push+PR).
+- Stretch goals implemented (priorities 1–2 from spec §5; write tools and
+  further context-bundle tuning left as follow-ups, noted in README):
+  - `find_path`: shortest undirected path between two notes
+    (`VaultGraph.shortestPath`, already built in Phase 1) + a one-line
+    summary per hop.
+  - `get_related`: Jaccard similarity over a combined {tags} ∪
+    {1-hop neighbor ids} feature set, explicitly excluding notes that are
+    already directly linked — see DECISIONS.md D13.
+  - Both registered as read-only tools; server now exposes 12 tools total.
+
+**Gate evidence:**
+
+```
+$ npm run build && npm test
+✓ src/mcp/server.test.ts (16 tests)   — was 13, +3 for find_path/get_related
+  incl. find_path 2-hop via Hub Note, disconnected-notes "no connection"
+  case, get_related surfacing a tag-similar-but-unlinked note
+Test Files  9 passed (9)   Tests  73 passed (73)
+```

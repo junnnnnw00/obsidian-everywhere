@@ -125,6 +125,36 @@ export function createServer(engine: VaultEngine): McpServer {
   );
 
   server.registerTool(
+    "find_path",
+    {
+      title: "Find Path",
+      description:
+        "Find the shortest connection path between two notes (links treated as undirected), with a one-line summary of each note along the way. Shows how two concepts are actually connected in the vault.",
+      inputSchema: {
+        from: z.string().describe("Starting note path, title, or alias."),
+        to: z.string().describe("Destination note path, title, or alias."),
+      },
+      annotations: READ_ONLY,
+    },
+    async (args) => textResult(tools.findPath(engine, args)),
+  );
+
+  server.registerTool(
+    "get_related",
+    {
+      title: "Get Related",
+      description:
+        "Recommend similar notes that are NOT directly linked to the given note, based on Jaccard similarity of shared tags and shared 1-hop neighbors. Use this to surface notes that probably should be linked but aren't yet.",
+      inputSchema: {
+        path: z.string().describe("Note path, title, or alias."),
+        limit: z.number().int().positive().max(50).optional().describe("Max results (default 5)."),
+      },
+      annotations: READ_ONLY,
+    },
+    async (args) => textResult(tools.getRelated(engine, args)),
+  );
+
+  server.registerTool(
     "find_orphans",
     {
       title: "Find Orphans",
