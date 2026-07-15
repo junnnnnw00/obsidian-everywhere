@@ -6,7 +6,8 @@
   "type": "module",
   "bin": {
     "obsidian-everywhere": "./dist/cli.js",
-    "obsidian-everywhere-http": "./dist/http-cli.js"
+    "obsidian-everywhere-http": "./dist/http-cli.js",
+    "obsidian-everywhere-oauth-http": "./dist/oauth-http-cli.js"
   },
   "engines": {
     "node": ">=18.17"
@@ -18,6 +19,7 @@
     "build": "tsc -p tsconfig.json",
     "dev:stdio": "tsx src/cli.ts",
     "dev:http": "tsx src/http-cli.ts",
+    "dev:oauth-http": "tsx src/oauth-http-cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",

@@ -145,3 +145,64 @@ $ curl sequence against `node dist/http-cli.js <fixture-vault>` on :8934
 ```
 
 Full suite after Phase 3: `Test Files 8 passed (8)  Tests 67 passed (67)`.
+
+## 2026-07-16 00:20 — Phase 4: OAuth 2.1 done and e2e-verified; Docker gate blocked by host disk space
+
+- `src/oauth/provider.ts`: `SingleUserOAuthProvider` implements the SDK's
+  `OAuthServerProvider` (DCR clients store, PKCE code/token issuance,
+  refresh, revoke, `verifyAccessToken`). `authorize()` renders a minimal
+  HTML login form (one secret field); the actual OAuth code/token machinery
+  is otherwise standard PKCE. See DECISIONS.md D11 for why this is
+  deliberately not a real multi-tenant IdP.
+- `src/oauth/http-app.ts` mounts the SDK's `mcpAuthRouter` (discovery,
+  `/register`, `/token`, `/revoke`) plus our own `/login` route, and gates
+  `/mcp` with `requireBearerAuth`. Reuses `mountMcpEndpoint` extracted from
+  `src/http/app.ts` (Phase 3) so the session/transport bookkeeping isn't
+  duplicated between the static-bearer and OAuth apps.
+- `src/oauth-http-cli.ts`: third entrypoint (`obsidian-everywhere-oauth-http`).
+- Deploy assets: `Dockerfile` (multi-stage, Debian-slim for prebuilt
+  better-sqlite3 binaries), `docker-compose.yml` (two services — bearer for
+  Tailscale, OAuth for the public tunnel), `.env.example`,
+  `deploy/com.obsidian-everywhere.http.plist.template` +
+  `scripts/install-launchagent.sh`/`uninstall-launchagent.sh`,
+  `scripts/setup-cloudflare-tunnel.sh`, `docs/deploy.md`.
+
+**Gate evidence — OAuth flow (fully verified, real HTTP, no mocking):**
+
+```
+$ npm test  (src/oauth/http-app.test.ts, 3 tests)
+✓ publishes authorization-server and protected-resource discovery metadata
+✓ returns 401 with a WWW-Authenticate discovery pointer for an unauthenticated /mcp request
+✓ runs the full flow end to end:
+    DCR /register → PKCE /authorize (renders login form) → wrong secret
+    rejected (401, one-shot authzId burned) → fresh /authorize → correct
+    secret → 302 redirect with code+state → /token exchange → Bearer
+    access_token → authenticated initialize/tools/call against /mcp →
+    invalid token still rejected (401)
+```
+Full suite: `Test Files 9 passed (9)  Tests 70 passed (70)`.
+
+**Gate evidence — Docker (partial, host disk-space incident):**
+
+Mid-Phase-4, `docker build` failed with `input/output error` from
+buildkit; turned out the host disk was completely full (even `echo test`
+in bash and `git status` failed with `ENOSPC`). This was a host
+environment problem, not a defect in the Dockerfile — paused and asked the
+user to free disk space rather than attempting any destructive cleanup
+unattended. Space was freed (`df -h /` → 9.9Gi available afterward), but
+Docker Desktop's own daemon did not come back up cleanly on this machine
+across multiple restart attempts (`open -a Docker`, force-quit + relaunch,
+~4 minutes of polling `docker info`). What *is* verified without the
+daemon:
+
+```
+$ docker compose config   (with dummy env vars)
+# renders both services correctly: build context, command, env vars,
+# port mappings, and bind-mount volumes all as intended — see full
+# output captured during the session. No YAML/schema errors.
+```
+
+The full `docker build && docker run` gate is left as a checklist item in
+`HANDOFF.md` §1 — this is an environment-availability gap, not unfinished
+project code. Per the spec's "don't burn the whole night on one problem"
+rule, moving on to Phase 5 rather than continuing to poll the daemon.

@@ -1,0 +1,48 @@
+# Lab-server deployment (Host 2 in docs/architecture.md's topology).
+#
+# Two independent services share the same vault:
+#
+#   obsidian-everywhere       — static bearer token, for remote Claude Code
+#                                (e.g. from your MacBook) over Tailscale.
+#                                Do NOT publish this port publicly.
+#
+#   obsidian-everywhere-oauth — OAuth 2.1, for the claude.ai web/mobile
+#                                custom connector. This one is meant to be
+#                                fronted by a public HTTPS reverse proxy
+#                                (Cloudflare Tunnel — see docs/deploy.md).
+#                                Comment it out if you don't need the
+#                                claude.ai connector.
+#
+# Configure secrets in a sibling `.env` file (see `.env.example`).
+
+services:
+  obsidian-everywhere:
+    build: .
+    image: obsidian-everywhere:latest
+    command: ["node", "dist/http-cli.js"]
+    restart: unless-stopped
+    ports:
+      - "3737:3737"
+    environment:
+      OBSIDIAN_VAULT_PATH: /vault
+      OBSIDIAN_EVERYWHERE_DB: /vault/.obsidian-everywhere/index.db
+      OBSIDIAN_EVERYWHERE_TOKEN: ${OBSIDIAN_EVERYWHERE_TOKEN:?set a bearer token in .env}
+      PORT: "3737"
+    volumes:
+      - ${OBSIDIAN_VAULT_HOST_PATH:?set your vault's host path in .env}:/vault
+
+  obsidian-everywhere-oauth:
+    build: .
+    image: obsidian-everywhere:latest
+    command: ["node", "dist/oauth-http-cli.js"]
+    restart: unless-stopped
+    ports:
+      - "3738:3738"
+    environment:
+      OBSIDIAN_VAULT_PATH: /vault
+      OBSIDIAN_EVERYWHERE_DB: /vault/.obsidian-everywhere/index-oauth.db
+      OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:?set your public HTTPS origin in .env, e.g. from Cloudflare Tunnel}
+      OAUTH_LOGIN_SECRET: ${OAUTH_LOGIN_SECRET:?set a login secret in .env}
+      PORT: "3738"
+    volumes:
+      - ${OBSIDIAN_VAULT_HOST_PATH:?set your vault's host path in .env}:/vault
