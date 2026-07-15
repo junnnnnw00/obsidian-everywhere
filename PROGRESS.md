@@ -352,3 +352,48 @@ Docker daemon on this machine: still unrecovered after the earlier
 disk-space incident despite repeated checks across the session (`docker
 compose config` continues to validate without the daemon). Unchanged from
 the Phase 4 note — still tracked in `HANDOFF.md` §1, not silently dropped.
+
+## 2026-07-16 01:40 — HANDOFF §1 resolved: Docker build/run verified for real
+
+Diagnosed and fixed the Docker daemon: it wasn't a transient hiccup, it
+was Docker Desktop stuck mid self-update (interrupted by the earlier
+disk-full event) with corrupted orphaned image blobs left behind
+(`docker system df` showed 242MB of untracked "Images" usage that
+`docker images`/normal `prune` couldn't see or reclaim). Fixed by removing
+the stale `~/Library/Application Support/com.docker.install/in_progress/`
+staging directory and running `docker builder prune -af && docker system
+prune -af --volumes` before rebuilding.
+
+```
+$ docker build -t obsidian-everywhere:test .
+... (full multi-stage build, base image pull, npm ci x2, tsc build) ...
+#14 exporting to image ... DONE
+
+$ docker run -d --name oe-gate-test -p 3737:3737 \
+    -e OBSIDIAN_EVERYWHERE_TOKEN=test-gate-token \
+    -v "$(pwd)/fixtures/test-vault:/vault" obsidian-everywhere:test
+$ docker logs oe-gate-test
+obsidian-everywhere HTTP server listening on :3737 (vault: /vault)
+
+$ curl http://localhost:3737/healthz
+{"ok":true}
+$ curl -X POST http://localhost:3737/mcp -H "Authorization: Bearer test-gate-token" ... initialize
+event: message
+data: {"result":{"protocolVersion":"2025-11-25", ...}}
+$ curl ... tools/call vault_overview  (with Mcp-Session-Id from initialize)
+data: {"result":{"content":[{"type":"text","text":"# Vault Overview\n\n- **Notes**: 31 markdown notes ..."}]}}
+$ curl -X POST http://localhost:3737/mcp -H "Authorization: Bearer wrong" ...
+401
+```
+
+Also verified `docker compose up -d obsidian-everywhere` (the actual
+deployment path in `docker-compose.yml`, not just a raw `docker run`)
+against the fixture vault with real env vars — `/healthz` and an
+authenticated `initialize` both succeeded, then `docker compose down`
+cleaned up (network + container removed, no leftover `.obsidian-everywhere/`
+artifacts in the fixture vault directory afterward — verified with `git
+status`).
+
+No changes were needed to `Dockerfile`/`docker-compose.yml` — they were
+correct all along; the blocker was entirely Docker Desktop's own local
+state. HANDOFF.md §1 updated to reflect this is done.

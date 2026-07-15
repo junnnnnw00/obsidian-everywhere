@@ -4,43 +4,22 @@ Per the project spec's Anti-Mockup rules: anything requiring real external
 network access or interactive account/browser flows can't be completed in
 an unattended environment. This file is the checklist for what's left.
 
-## 1. Docker image build/run verification
+## 1. Docker image build/run verification — ✅ DONE (2026-07-16)
 
-**Status:** blocked mid-build by a host disk-space exhaustion (`ENOSPC`)
-during Phase 4, not by anything in the `Dockerfile`/`docker-compose.yml`
-themselves. Disk space was freed and `docker compose config` (no daemon
-required) confirms the compose file is syntactically valid and renders
-correctly — see PROGRESS.md for the full output. The Docker daemon itself
-did not come back up cleanly afterward (likely its own VM disk needs
-attention after the ENOSPC event) despite several restart attempts.
+Resolved. Root cause of the earlier failure: Docker Desktop was mid
+self-update when the host disk filled up (`~/Library/Application
+Support/com.docker.install/in_progress/`), the delta-patch failed, and
+the interrupted pull left corrupted/orphaned blobs in the local image
+store (`docker system df` showed 242MB of untracked, unreclaimable
+"Images" usage with `docker images` listing nothing). Fixed by: quitting
+Docker Desktop, deleting the stale `in_progress` update-staging directory,
+relaunching, then `docker builder prune -af && docker system prune -af
+--volumes` to clear the orphaned blobs before rebuilding.
 
-**To finish this gate:**
-```bash
-# 1. Make sure Docker Desktop is fully up: `docker info` should succeed.
-#    If it doesn't, Docker Desktop's disk image may need a reset:
-#    Docker Desktop → Troubleshoot → "Clean / Purge data" (this only
-#    affects Docker's own state, not your files).
-docker info
-
-# 2. Build
-docker build -t obsidian-everywhere:test .
-
-# 3. Run against the fixture vault and confirm it serves real requests
-docker run --rm -p 3737:3737 \
-  -e OBSIDIAN_EVERYWHERE_TOKEN=test-token \
-  -v "$(pwd)/fixtures/test-vault:/vault" \
-  obsidian-everywhere:test
-
-# In another terminal:
-curl http://localhost:3737/healthz
-curl -X POST http://localhost:3737/mcp \
-  -H "Authorization: Bearer test-token" \
-  -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"x","version":"0"}}}'
-```
-Expected: `{"ok":true}` from `/healthz`, and a valid `initialize` JSON-RPC
-response from `/mcp` (same shape verified in `src/http/app.test.ts` and the
-curl gate evidence in PROGRESS.md's Phase 3 section, minus Docker itself).
+Both `docker build` and `docker compose up` verified for real against the
+fixture vault — see PROGRESS.md for full output. No changes were needed
+to the `Dockerfile`/`docker-compose.yml` themselves; they were correct all
+along, just blocked by the corrupted local Docker state.
 
 ## 2. Real Cloudflare Tunnel connection
 
