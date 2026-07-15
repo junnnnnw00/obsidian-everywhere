@@ -434,3 +434,15 @@ Tests 99 passed (99)`. HANDOFF.md §4 is otherwise unchanged — actually
 running `launchctl bootstrap` for real is still left for the user, since
 it registers a persistent background service on their machine and they
 asked to do that step themselves.
+
+## 2026-07-16 01:46 — Pushed to GitHub, CI verified green for real
+
+`gh repo create junnnnnw00/obsidian-everywhere --private --source=. --remote=origin`
++ `git push -u origin main`. First real GitHub Actions run
+(29433758327) passed on both Node 20.x/22.x matrix jobs (lint, format
+check, build, test all green) — one annotation about `actions/checkout@v4`/
+`actions/setup-node@v4` running on a deprecated Node 20 actions-runtime;
+bumped both to `@v7` and pushed again (29433835857) — fully clean, zero
+annotations. This is the real CI badge now shown in README.md.
+
+Repo: https://github.com/junnnnnw00/obsidian-everywhere (private).
