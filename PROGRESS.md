@@ -397,3 +397,40 @@ status`).
 No changes were needed to `Dockerfile`/`docker-compose.yml` — they were
 correct all along; the blocker was entirely Docker Desktop's own local
 state. HANDOFF.md §1 updated to reflect this is done.
+
+## 2026-07-16 01:44 — HANDOFF §4 (LaunchAgent): 2 real bugs found and fixed via dry run
+
+User asked to install the LaunchAgent for real, then changed their mind
+(wants to install it themselves later) — ran a safe dry run instead
+(`bash -n` syntax check, then a full functional run with a stubbed
+`launchctl` on `PATH` so nothing was actually registered with launchd,
+against the fixture vault; cleaned up the transiently-written plist file
+and `logs/` dir afterward). This caught two real bugs that would have
+hit the user the first time they actually ran the script:
+
+1. `bash -n scripts/install-launchagent.sh` failed outright:
+   `${OBSIDIAN_VAULT_PATH:?Set OBSIDIAN_VAULT_PATH to your vault's
+   absolute path}"` — the apostrophe in "vault's" inside a `${VAR:?message}`
+   default breaks bash's parser even though the whole thing is inside
+   double quotes (a known bash gotcha: `${...}` expansion does its own
+   quote-balancing pass that isn't the same as the enclosing string's).
+   Reworded both `:?` messages in the file to avoid apostrophes.
+2. `NODE_BIN="$(command -v node)"` under `set -e`: if `command -v node`
+   ever fails (node not on PATH), the failed command substitution kills
+   the script immediately, before the intended friendly "node not found on
+   PATH" message can print. Changed to `command -v node || true` so the
+   explicit `if [ -z "$NODE_BIN" ]` check actually gets to run.
+
+After both fixes: `bash -n` passes on all three deployment scripts
+(`install-launchagent.sh`, `uninstall-launchagent.sh`,
+`setup-cloudflare-tunnel.sh`), and the stubbed-launchctl dry run completed
+cleanly end to end (build → plist templating → `plutil -lint`-valid plist
+→ fake bootstrap/enable calls), writing a correct plist (verified content:
+absolute node path, absolute dist/http-cli.js path, vault path, token,
+port, log paths all substituted correctly).
+
+Full test suite re-verified after the fix: `Test Files 12 passed (12)
+Tests 99 passed (99)`. HANDOFF.md §4 is otherwise unchanged — actually
+running `launchctl bootstrap` for real is still left for the user, since
+it registers a persistent background service on their machine and they
+asked to do that step themselves.

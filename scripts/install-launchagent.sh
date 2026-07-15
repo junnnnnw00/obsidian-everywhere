@@ -16,10 +16,10 @@ INSTALL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PLIST_LABEL="com.obsidian-everywhere.http"
 PLIST_DEST="$HOME/Library/LaunchAgents/${PLIST_LABEL}.plist"
 
-: "${OBSIDIAN_VAULT_PATH:?Set OBSIDIAN_VAULT_PATH to your vault's absolute path}"
-: "${OBSIDIAN_EVERYWHERE_TOKEN:?Set OBSIDIAN_EVERYWHERE_TOKEN to a secret bearer token (e.g. \$(openssl rand -hex 32))}"
+: "${OBSIDIAN_VAULT_PATH:?Set OBSIDIAN_VAULT_PATH to the absolute path of your vault}"
+: "${OBSIDIAN_EVERYWHERE_TOKEN:?Set OBSIDIAN_EVERYWHERE_TOKEN to a secret bearer token, e.g. via openssl rand -hex 32}"
 
-NODE_BIN="$(command -v node)"
+NODE_BIN="$(command -v node || true)"
 if [ -z "$NODE_BIN" ]; then
   echo "node not found on PATH. Install Node.js first." >&2
   exit 1
