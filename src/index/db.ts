@@ -275,15 +275,15 @@ export class VaultDB {
       .all() as FileRow[];
   }
 
-  findUnresolved(): { targetRaw: string; sourcePath: string; line: number | null }[] {
+  findUnresolved(): { targetRaw: string; sourcePath: string; line: number | null; heading: string | null; blockId: string | null }[] {
     return this.db
       .prepare(
-        `SELECT l.target_raw as targetRaw, f.path as sourcePath, l.line as line
+        `SELECT l.target_raw as targetRaw, f.path as sourcePath, l.line as line, l.heading as heading, l.block_id as blockId
          FROM links l JOIN files f ON f.id = l.source_id
          WHERE l.target_id IS NULL
          ORDER BY l.target_raw`,
       )
-      .all() as { targetRaw: string; sourcePath: string; line: number | null }[];
+      .all() as { targetRaw: string; sourcePath: string; line: number | null; heading: string | null; blockId: string | null }[];
   }
 
   countResolvedLinks(): number {

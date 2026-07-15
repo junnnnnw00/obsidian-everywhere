@@ -8,6 +8,8 @@ import type { VaultEngine } from "../vault-engine.js";
 export interface HttpAppOptions {
   /** Static bearer token required on every /mcp request. */
   bearerToken: string;
+  /** Register create_note/append_to_note. Defaults to true. */
+  enableWriteTools?: boolean;
 }
 
 function bearerAuth(bearerToken: string): RequestHandler {
@@ -32,7 +34,12 @@ function bearerAuth(bearerToken: string): RequestHandler {
  * Shared by both the static-bearer app (Phase 3) and the OAuth app
  * (Phase 4) so the transport/session bookkeeping only lives in one place.
  */
-export function mountMcpEndpoint(app: Express, engine: VaultEngine, authMiddleware: RequestHandler): void {
+export function mountMcpEndpoint(
+  app: Express,
+  engine: VaultEngine,
+  authMiddleware: RequestHandler,
+  options: { enableWriteTools?: boolean } = {},
+): void {
   const transports = new Map<string, StreamableHTTPServerTransport>();
 
   const handle = async (req: Request, res: Response): Promise<void> => {
@@ -60,7 +67,7 @@ export function mountMcpEndpoint(app: Express, engine: VaultEngine, authMiddlewa
         if (transport?.sessionId) transports.delete(transport.sessionId);
       };
 
-      const mcpServer = createServer(engine);
+      const mcpServer = createServer(engine, { enableWriteTools: options.enableWriteTools });
       await mcpServer.connect(transport);
     }
 
@@ -77,7 +84,7 @@ export function createHttpApp(engine: VaultEngine, options: HttpAppOptions): Exp
   const app = express();
   app.use(express.json());
 
-  mountMcpEndpoint(app, engine, bearerAuth(options.bearerToken));
+  mountMcpEndpoint(app, engine, bearerAuth(options.bearerToken), { enableWriteTools: options.enableWriteTools });
 
   app.get("/healthz", (_req, res) => {
     res.status(200).json({ ok: true });

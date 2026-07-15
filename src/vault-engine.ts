@@ -1,7 +1,7 @@
 import type { FSWatcher } from "chokidar";
 import { VaultGraph } from "./graph/graph.js";
 import { VaultDB } from "./index/db.js";
-import { fullScan } from "./index/scan.js";
+import { applyFileUpsert, fullScan, type ScanResult } from "./index/scan.js";
 import { DEFAULT_EXCLUDE_DIRS } from "./vault/paths.js";
 import { startWatcher, type WatchEvent } from "./watcher/watcher.js";
 
@@ -33,6 +33,18 @@ export class VaultEngine {
   init(): void {
     fullScan(this.db, this.vaultDir, this.excludeDirs);
     this.graph.loadFull(this.db);
+  }
+
+  /**
+   * Synchronously reindex one file right after a write tool changes it on
+   * disk, instead of waiting for the (debounced) filesystem watcher event.
+   * Idempotent with the watcher: `applyFileUpsert` is mtime+hash-gated, so
+   * the watcher's own later event for the same write is a no-op.
+   */
+  indexFileNow(relPath: string): ScanResult {
+    const result = applyFileUpsert(this.db, this.vaultDir, relPath);
+    this.graph.applyScanResult(this.db, result);
+    return result;
   }
 
   watch(onEvent?: (event: WatchEvent) => void): void {

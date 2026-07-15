@@ -37,10 +37,12 @@ describe("MCP stdio-layer tool server", () => {
     await engine.close();
   });
 
-  it("lists all 12 tools, each read-only", async () => {
+  it("lists all 14 tools (12 read-only + 2 write, enabled by default)", async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      "append_to_note",
+      "create_note",
       "find_orphans",
       "find_path",
       "find_unresolved",
@@ -54,8 +56,14 @@ describe("MCP stdio-layer tool server", () => {
       "search_notes",
       "vault_overview",
     ]);
+    const writeToolNames = new Set(["create_note", "append_to_note"]);
     for (const t of tools) {
-      expect(t.annotations?.readOnlyHint).toBe(true);
+      if (writeToolNames.has(t.name)) {
+        expect(t.annotations?.readOnlyHint).toBe(false);
+        expect(t.annotations?.destructiveHint).toBe(true);
+      } else {
+        expect(t.annotations?.readOnlyHint).toBe(true);
+      }
     }
   });
 

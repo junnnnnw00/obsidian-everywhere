@@ -11,6 +11,8 @@ export interface OAuthHttpAppOptions {
   issuerUrl: URL;
   /** Single pre-shared login secret (see D11 in DECISIONS.md). */
   loginSecret: string;
+  /** Register create_note/append_to_note. Defaults to true here too — oauth-http-cli.ts defaults this to false at the CLI layer instead, since a public connector is a bigger attack surface (see D15). */
+  enableWriteTools?: boolean;
 }
 
 /**
@@ -37,7 +39,9 @@ export function createOAuthHttpApp(engine: VaultEngine, options: OAuthHttpAppOpt
   app.use(createLoginRouter(provider));
 
   const resourceMetadataUrl = getOAuthProtectedResourceMetadataUrl(resourceUrl);
-  mountMcpEndpoint(app, engine, requireBearerAuth({ verifier: provider, resourceMetadataUrl }));
+  mountMcpEndpoint(app, engine, requireBearerAuth({ verifier: provider, resourceMetadataUrl }), {
+    enableWriteTools: options.enableWriteTools,
+  });
 
   app.get("/healthz", (_req, res) => {
     res.status(200).json({ ok: true });

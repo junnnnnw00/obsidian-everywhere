@@ -1,5 +1,10 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import matter from "gray-matter";
 import type { FileRow } from "../index/db.js";
+import { parseNote } from "../parser/markdown.js";
 import { resolveLink } from "../vault/resolve.js";
+import { resolveWithinVault, toSafeVaultRelPath } from "../vault/paths.js";
 import type { VaultEngine } from "../vault-engine.js";
 import { estimateTokens, extractSection, firstParagraph, formatFrontmatter, truncateToTokens } from "./format.js";
 
@@ -365,16 +370,100 @@ export function getRelated(engine: VaultEngine, args: GetRelatedArgs): string {
 export function findUnresolved(engine: VaultEngine): string {
   const rows = engine.db.findUnresolved();
   if (rows.length === 0) return "# Unresolved Links\n\n_none — every link resolves_";
-  const byTarget = new Map<string, { sourcePath: string; line: number | null }[]>();
+
+  const byTarget = new Map<string, { sourcePath: string; line: number | null; heading: string | null; blockId: string | null }[]>();
   for (const r of rows) {
     const list = byTarget.get(r.targetRaw) ?? [];
-    list.push({ sourcePath: r.sourcePath, line: r.line });
+    list.push({ sourcePath: r.sourcePath, line: r.line, heading: r.heading, blockId: r.blockId });
     byTarget.set(r.targetRaw, list);
   }
+
   const lines = [`# Unresolved Links (${byTarget.size})`, ""];
   for (const [target, sources] of byTarget) {
     lines.push(`- **${target}** — referenced from:`);
-    for (const s of sources) lines.push(`  - [[${s.sourcePath}]]${s.line ? ` (line ${s.line})` : ""}`);
+    for (const s of sources) {
+      const fragment = s.blockId ? `#^${s.blockId}` : s.heading ? `#${s.heading}` : "";
+      lines.push(`  - [[${s.sourcePath}${fragment}]]${s.line ? ` (line ${s.line})` : ""}`);
+    }
   }
   return lines.join("\n");
+}
+
+// --- write tools -----------------------------------------------------
+
+export interface CreateNoteArgs {
+  path: string;
+  content?: string;
+  frontmatter?: Record<string, unknown>;
+  overwrite?: boolean;
+}
+
+export function createNote(engine: VaultEngine, args: CreateNoteArgs): string {
+  let relPath: string;
+  let absPath: string;
+  try {
+    relPath = toSafeVaultRelPath(args.path);
+    absPath = resolveWithinVault(engine.vaultDir, relPath);
+  } catch (err) {
+    return `Error: ${(err as Error).message}`;
+  }
+
+  if (existsSync(absPath) && !args.overwrite) {
+    return `Error: ${relPath} already exists. Pass overwrite: true to replace it, or use append_to_note to add to it.`;
+  }
+
+  const body = args.content ?? "";
+  const fileText = args.frontmatter && Object.keys(args.frontmatter).length > 0 ? matter.stringify(body, args.frontmatter) : body;
+
+  mkdirSync(path.dirname(absPath), { recursive: true });
+  writeFileSync(absPath, fileText, "utf8");
+  engine.indexFileNow(relPath);
+
+  return `Created ${relPath}.\n\n${readNote(engine, { path: relPath })}`;
+}
+
+export interface AppendToNoteArgs {
+  path: string;
+  content: string;
+  heading?: string;
+}
+
+export function appendToNote(engine: VaultEngine, args: AppendToNoteArgs): string {
+  const file = resolveNoteArg(engine, args.path);
+  if (!file) return `Error: note not found: ${args.path}. Use create_note to make a new one.`;
+
+  const absPath = resolveWithinVault(engine.vaultDir, file.path);
+  const raw = readFileSync(absPath, "utf8");
+  const parsed = parseNote(raw);
+
+  const lines = parsed.body.split(/\r\n|\n/);
+  let newBody: string;
+
+  if (args.heading) {
+    const idx = parsed.headings.findIndex((h) => h.text.trim().toLowerCase() === args.heading!.trim().toLowerCase());
+    if (idx === -1) {
+      return `Error: heading "${args.heading}" not found in ${file.path}. Nothing was written.`;
+    }
+    const target = parsed.headings[idx]!;
+    let endLine = lines.length + 1;
+    for (let i = idx + 1; i < parsed.headings.length; i++) {
+      if (parsed.headings[i]!.level <= target.level) {
+        endLine = parsed.headings[i]!.line;
+        break;
+      }
+    }
+    const insertionIndex = endLine - 1;
+    const before = lines.slice(0, insertionIndex);
+    const after = lines.slice(insertionIndex);
+    newBody = [...before, "", args.content.trimEnd(), "", ...after].join("\n");
+  } else {
+    newBody = `${parsed.body.replace(/\s+$/, "")}\n\n${args.content.trimEnd()}\n`;
+  }
+  newBody = newBody.replace(/\n{3,}/g, "\n\n");
+
+  const fileText = Object.keys(parsed.frontmatter).length > 0 ? matter.stringify(newBody, parsed.frontmatter) : newBody;
+  writeFileSync(absPath, fileText, "utf8");
+  engine.indexFileNow(file.path);
+
+  return `Appended to ${file.path}${args.heading ? ` under heading "${args.heading}"` : ""}.\n\n${readNote(engine, { path: file.path })}`;
 }

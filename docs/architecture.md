@@ -134,7 +134,8 @@ is what every transport (`src/cli.ts`, `src/http-cli.ts`,
 
 ## MCP Tool Layer (`src/mcp/tools.ts`, `src/mcp/server.ts`)
 
-Twelve read-only tools (`readOnlyHint: true` on every one), each a pure
+Twelve read-only tools (`readOnlyHint: true` on every one) plus two write
+tools (`create_note`, `append_to_note`, `readOnlyHint: false`), each a pure
 function `(engine, args) => markdown string`, registered identically
 regardless of transport. `resolveNoteArg` lets every tool accept a note
 reference as a path, bare title, or alias — it reuses the exact same
@@ -147,6 +148,15 @@ recency) into a token budget, using a cheap chars/4 estimate for the
 packing decisions themselves (has to run on every call, so it stays fast)
 while the test suite double-checks actual compliance with a real BPE
 tokenizer (`gpt-tokenizer`, devDependency only — see DECISIONS.md D10).
+
+`create_note`/`append_to_note` are the only tools that touch disk. Every
+write goes through `toSafeVaultRelPath`/`resolveWithinVault`
+(`src/vault/paths.ts`) for path-traversal/excluded-directory rejection,
+then `VaultEngine.indexFileNow` to reindex synchronously — so the write
+is visible to the *next* tool call in the same conversation without
+waiting on the filesystem watcher. See DECISIONS.md D15 for why they're
+enabled by default on stdio/bearer-HTTP but disabled by default on the
+public OAuth transport.
 
 ## Transports (`src/http/`, `src/oauth/`)
 

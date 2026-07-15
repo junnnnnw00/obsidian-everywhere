@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createOAuthHttpApp } from "./oauth/http-app.js";
 import { VaultEngine } from "./vault-engine.js";
+import { oauthWriteToolsEnabled } from "./env.js";
 
 function resolveConfig(): { vaultDir: string; dbPath: string; port: number; issuerUrl: URL; loginSecret: string } {
   const vaultDir = process.env.OBSIDIAN_VAULT_PATH ?? process.argv[2];
@@ -34,7 +35,11 @@ async function main(): Promise<void> {
   engine.init();
   engine.watch();
 
-  const app = createOAuthHttpApp(engine, { issuerUrl, loginSecret });
+  const enableWriteTools = oauthWriteToolsEnabled();
+  if (!enableWriteTools) {
+    console.error("Write tools (create_note/append_to_note) are disabled by default on the public OAuth connector. Set OAUTH_ENABLE_WRITE_TOOLS=true to enable them.");
+  }
+  const app = createOAuthHttpApp(engine, { issuerUrl, loginSecret, enableWriteTools });
   const httpServer = app.listen(port, () => {
     console.error(`obsidian-everywhere OAuth HTTP server listening on :${port} (issuer: ${issuerUrl}, vault: ${vaultDir})`);
     console.error("This process must sit behind a reverse proxy (e.g. Cloudflare Tunnel) that terminates HTTPS at the issuer URL.");

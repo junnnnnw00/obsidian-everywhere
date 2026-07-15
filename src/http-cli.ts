@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createHttpApp } from "./http/app.js";
 import { VaultEngine } from "./vault-engine.js";
+import { writeToolsEnabledByDefault } from "./env.js";
 
 function resolveConfig(): { vaultDir: string; dbPath: string; port: number; bearerToken: string } {
   const vaultDir = process.env.OBSIDIAN_VAULT_PATH ?? process.argv[2];
@@ -29,7 +30,7 @@ async function main(): Promise<void> {
   engine.init();
   engine.watch();
 
-  const app = createHttpApp(engine, { bearerToken });
+  const app = createHttpApp(engine, { bearerToken, enableWriteTools: writeToolsEnabledByDefault() });
   const httpServer = app.listen(port, () => {
     console.error(`obsidian-everywhere HTTP server listening on :${port} (vault: ${vaultDir})`);
   });

@@ -10,8 +10,15 @@ function textResult(text: string) {
 }
 
 const READ_ONLY = { readOnlyHint: true, openWorldHint: false };
+const WRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
 
-export function createServer(engine: VaultEngine): McpServer {
+export interface CreateServerOptions {
+  /** Register create_note/append_to_note. Defaults to true — set to false for a read-only deployment (e.g. a public connector you don't fully trust). */
+  enableWriteTools?: boolean;
+}
+
+export function createServer(engine: VaultEngine, options: CreateServerOptions = {}): McpServer {
+  const enableWriteTools = options.enableWriteTools ?? true;
   const server = new McpServer({ name: "obsidian-everywhere", version: VERSION }, { capabilities: { tools: {} } });
 
   server.registerTool(
@@ -175,6 +182,41 @@ export function createServer(engine: VaultEngine): McpServer {
     },
     async () => textResult(tools.findUnresolved(engine)),
   );
+
+  if (enableWriteTools) {
+    server.registerTool(
+      "create_note",
+      {
+        title: "Create Note",
+        description:
+          "Create a new note in the vault. Fails if the note already exists unless overwrite is set. The note is indexed immediately — outlinks/tags in its content become real graph edges right away, visible to the very next tool call.",
+        inputSchema: {
+          path: z.string().describe("Vault-relative path for the new note, e.g. 'Projects/New Idea' (`.md` is added automatically)."),
+          content: z.string().optional().describe("Note body (markdown, without frontmatter)."),
+          frontmatter: z.record(z.string(), z.unknown()).optional().describe("Frontmatter fields (tags, aliases, or any custom field)."),
+          overwrite: z.boolean().optional().describe("Replace the note if it already exists (default false)."),
+        },
+        annotations: WRITE,
+      },
+      async (args) => textResult(tools.createNote(engine, args)),
+    );
+
+    server.registerTool(
+      "append_to_note",
+      {
+        title: "Append To Note",
+        description:
+          "Append content to an existing note — either at the end of the file, or at the end of a specific heading's section. Fails without writing anything if the heading isn't found. Reindexed immediately.",
+        inputSchema: {
+          path: z.string().describe("Note path, title, or alias — must already exist."),
+          content: z.string().describe("Markdown content to append."),
+          heading: z.string().optional().describe("Append at the end of this heading's section instead of the end of the file."),
+        },
+        annotations: WRITE,
+      },
+      async (args) => textResult(tools.appendToNote(engine, args)),
+    );
+  }
 
   return server;
 }

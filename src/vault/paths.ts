@@ -26,3 +26,46 @@ export function shouldExclude(relPath: string, excludeDirs: string[] = DEFAULT_E
   const segments = relPath.split("/");
   return segments.some((seg) => excludeDirs.includes(seg));
 }
+
+/**
+ * Validates and normalizes a caller-supplied note path for write tools:
+ * rejects absolute paths and `.`/`..` segments (path traversal), rejects
+ * paths under excluded directories (e.g. `.obsidian`), and appends `.md`
+ * if missing. Throws on anything invalid rather than silently coercing it,
+ * since a write tool guessing wrong about the target path is worse than
+ * failing loudly.
+ */
+export function toSafeVaultRelPath(requested: string): string {
+  const trimmed = requested.trim();
+  if (!trimmed) throw new Error("path must not be empty");
+
+  let rel = trimmed.split("\\").join("/");
+  if (rel.startsWith("/") || /^[A-Za-z]:/.test(rel)) {
+    throw new Error("path must be relative to the vault root, not absolute");
+  }
+  if (!isMarkdownPath(rel)) rel = `${rel}.md`;
+
+  const segments = rel.split("/").filter((s) => s.length > 0);
+  if (segments.some((s) => s === "." || s === "..")) {
+    throw new Error("path must not contain '.' or '..' segments");
+  }
+
+  const normalized = segments.join("/");
+  if (shouldExclude(normalized)) {
+    throw new Error("path is inside an excluded directory (e.g. .obsidian)");
+  }
+  return normalized;
+}
+
+/**
+ * Resolves a validated vault-relative path to an absolute filesystem path,
+ * with a defense-in-depth check that it didn't escape `vaultDir`.
+ */
+export function resolveWithinVault(vaultDir: string, safeRelPath: string): string {
+  const absVault = path.resolve(vaultDir);
+  const absTarget = path.resolve(absVault, safeRelPath);
+  if (absTarget !== absVault && !absTarget.startsWith(absVault + path.sep)) {
+    throw new Error("resolved path escapes the vault");
+  }
+  return absTarget;
+}

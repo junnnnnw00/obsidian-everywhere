@@ -20,7 +20,7 @@ relationships, not just raw text.
   search, and an in-memory [graphology](https://graphology.github.io/)
   layer for n-hop traversal, shortest paths, and PageRank — kept in sync
   incrementally as files change, never rebuilt from scratch.
-- **12 graph-native MCP tools**, all read-only in v0.1:
+- **14 graph-native MCP tools** — 12 read-only, 2 write:
 
   | Tool | What it does |
   |---|---|
@@ -36,6 +36,13 @@ relationships, not just raw text.
   | `find_unresolved` | Links that don't resolve to any note, grouped by target |
   | `find_path` | Shortest connection path between two notes, with a one-line summary per hop |
   | `get_related` | Similar notes that *aren't* directly linked yet (Jaccard similarity over shared tags/neighbors) |
+  | `create_note` | Create a new note (with frontmatter); reindexed immediately — the next tool call already sees it |
+  | `append_to_note` | Append to a note, optionally under a specific heading; fails closed if the heading isn't found |
+
+  `create_note`/`append_to_note` are on by default for stdio and the
+  bearer-token HTTP transport, and off by default for the public OAuth
+  connector transport (opt in with `OAUTH_ENABLE_WRITE_TOOLS=true`) — see
+  [Configuration](#configuration) and DECISIONS.md D15.
 
 - **Three ways to connect**: stdio for local Claude clients, Streamable
   HTTP with a static bearer token for a remote Claude Code over Tailscale,
@@ -122,6 +129,8 @@ for the full Cloudflare Tunnel setup. Once your server is reachable at
 | `PORT` | `http-cli.js`, `oauth-http-cli.js` | HTTP port (defaults 3737 / 3738) |
 | `OAUTH_ISSUER_URL` | `oauth-http-cli.js` | Public HTTPS origin (e.g. your Cloudflare Tunnel hostname) |
 | `OAUTH_LOGIN_SECRET` | `oauth-http-cli.js` | Single-user login secret |
+| `OBSIDIAN_EVERYWHERE_READONLY` | `cli.js`, `http-cli.js` | Set to `true` to disable `create_note`/`append_to_note` (default: write tools on) |
+| `OAUTH_ENABLE_WRITE_TOOLS` | `oauth-http-cli.js` | Set to `true` to enable `create_note`/`append_to_note` on the public connector (default: off) |
 
 ## Development
 
@@ -142,12 +151,13 @@ exclusion, and Korean filenames/tags/wikilinks). It's what every test in
 
 ## Project status
 
-v0.1, all read-only. Write tools (`create_note`, `append_to_note`) are the
-only spec'd v0.1 stretch item not yet built — see `PROGRESS.md` for what
-shipped and `HANDOFF.md` for the handful of steps that need a human
-(registering the claude.ai connector, the actual Cloudflare Tunnel account
-setup, and a final Docker build/run check — see `HANDOFF.md` for why those
-specifically couldn't be finished unattended).
+v0.1, feature-complete against the spec including write tools. See
+`PROGRESS.md` for what shipped and `HANDOFF.md` for the handful of steps
+that need a human (registering the claude.ai connector, the actual
+Cloudflare Tunnel account setup, and a final Docker build/run check — see
+`HANDOFF.md` for why those specifically couldn't be finished unattended).
+Tested against a real personal vault (58 notes, 36 attachments, Korean
+content) in addition to the fixture vault — see PROGRESS.md.
 
 ## License
 

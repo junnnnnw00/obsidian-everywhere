@@ -27,6 +27,7 @@ services:
       OBSIDIAN_VAULT_PATH: /vault
       OBSIDIAN_EVERYWHERE_DB: /vault/.obsidian-everywhere/index.db
       OBSIDIAN_EVERYWHERE_TOKEN: ${OBSIDIAN_EVERYWHERE_TOKEN:?set a bearer token in .env}
+      OBSIDIAN_EVERYWHERE_READONLY: ${OBSIDIAN_EVERYWHERE_READONLY:-false}
       PORT: "3737"
     volumes:
       - ${OBSIDIAN_VAULT_HOST_PATH:?set your vault's host path in .env}:/vault
@@ -43,6 +44,7 @@ services:
       OBSIDIAN_EVERYWHERE_DB: /vault/.obsidian-everywhere/index-oauth.db
       OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:?set your public HTTPS origin in .env, e.g. from Cloudflare Tunnel}
       OAUTH_LOGIN_SECRET: ${OAUTH_LOGIN_SECRET:?set a login secret in .env}
+      OAUTH_ENABLE_WRITE_TOOLS: ${OAUTH_ENABLE_WRITE_TOOLS:-false}
       PORT: "3738"
     volumes:
       - ${OBSIDIAN_VAULT_HOST_PATH:?set your vault's host path in .env}:/vault
