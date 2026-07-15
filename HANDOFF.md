@@ -73,6 +73,10 @@ This is a claude.ai UI flow, not something scriptable:
 4. Enter the `OAUTH_LOGIN_SECRET` you configured.
 5. Confirm the connector shows as connected, and that a test conversation
    can call e.g. `vault_overview` and get real data back.
+6. `create_note`/`append_to_note` are **off by default** on this transport
+   (see DECISIONS.md D15) — set `OAUTH_ENABLE_WRITE_TOOLS=true` before
+   starting `oauth-http-cli.js` if you want claude.ai to be able to write
+   to the vault too, not just read from it.
 
 The local OAuth flow itself (DCR → PKCE authorize → login → token exchange
 → authenticated tools/call) **is** verified end-to-end already, against a

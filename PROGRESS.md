@@ -341,3 +341,14 @@ prettier --check: all files formatted
 tsc build: 0 errors
 Test Files  12 passed (12)   Tests  99 passed (99)
 ```
+
+Reran the full fresh-clone gate (README-only reproduction, brand new
+`git clone` into `/tmp`) one more time after this round of changes:
+`npm install` → `typecheck` → `lint` → `format:check` → `build` → `test`
+all clean (99/99), plus a real stdio boot confirming `tools/list` returns
+14 tools including `create_note`/`append_to_note`.
+
+Docker daemon on this machine: still unrecovered after the earlier
+disk-space incident despite repeated checks across the session (`docker
+compose config` continues to validate without the daemon). Unchanged from
+the Phase 4 note — still tracked in `HANDOFF.md` §1, not silently dropped.
