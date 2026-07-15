@@ -40,15 +40,16 @@ text.
 ## Features
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  your vault (.md files)                                   │
-│       │  parse · watch                                    │
-│       ▼                                                    │
-│  SQLite index (FTS5)  ⇄  in-memory graph (graphology)      │
-│       │                        n-hop · shortest path · PageRank
-│       ▼                                                    │
-│  14 MCP tools  ──▶  stdio · bearer-token HTTP · OAuth HTTP  │
-└──────────────────────────────────────────────────────────┘
+vault (.md files)
+  │  parse · watch
+  ▼
+SQLite index (FTS5)  ⇄  in-memory graph (graphology)
+  │                       n-hop · shortest path · PageRank
+  ▼
+14 MCP tools
+  │
+  ▼
+stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 ```
 
 - 🧩 **Real graph engine** — a markdown parser (wikilinks, embeds,
