@@ -19,3 +19,7 @@ logs/
 # ad hoc verification scripts (e.g. against a real vault) — never meant to be committed
 scratch-*
 *.scratch.*
+
+# dev-process logs, not user-facing docs — kept locally, not published
+PROGRESS.md
+HANDOFF.md

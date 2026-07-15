@@ -154,13 +154,12 @@ exclusion, and Korean filenames/tags/wikilinks). It's what every test in
 
 ## Project status
 
-v0.1, feature-complete against the spec including write tools. See
-`PROGRESS.md` for what shipped and `HANDOFF.md` for the handful of steps
-that need a human (registering the claude.ai connector, the actual
-Cloudflare Tunnel account setup, and a final Docker build/run check — see
-`HANDOFF.md` for why those specifically couldn't be finished unattended).
-Tested against a real personal vault (58 notes, 36 attachments, Korean
-content) in addition to the fixture vault — see PROGRESS.md.
+v0.1, feature-complete: full graph engine, all three transports (stdio,
+bearer-token HTTP, OAuth HTTP), 14 MCP tools including write tools. A few
+things need a human to finish (registering the claude.ai connector, an
+actual Cloudflare Tunnel account) since they require a browser/account —
+see `docs/deploy.md`. Tested against both the fixture vault and a real
+58-note personal vault with Korean content.
 
 ## Contributing
 

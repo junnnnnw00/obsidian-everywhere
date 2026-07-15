@@ -138,8 +138,8 @@ curl https://obsidian.example.com/.well-known/oauth-authorization-server
    "login" — there is one user.
 5. claude.ai completes the PKCE code exchange and the connector is live.
 
-This step (actually registering with claude.ai's UI) cannot be done from an
-unattended environment — see `HANDOFF.md` for the checklist.
+This step is a claude.ai UI flow — it needs your browser and Anthropic
+account, so there's no way to script it.
 
 ---
 
