@@ -15,3 +15,7 @@ coverage/
 .idea/
 *.swp
 logs/
+
+# ad hoc verification scripts (e.g. against a real vault) — never meant to be committed
+scratch-*
+*.scratch.*
