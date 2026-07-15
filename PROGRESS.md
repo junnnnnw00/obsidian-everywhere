@@ -240,3 +240,40 @@ $ npm run build && npm test
   case, get_related surfacing a tag-similar-but-unlinked note
 Test Files  9 passed (9)   Tests  73 passed (73)
 ```
+
+## 2026-07-16 00:27 — Final gate: fresh clone → install → build → test → stdio boot
+
+Per spec §7's closing instruction, reproduced the whole pipeline from a
+brand-new `git clone` (not the working tree) into `/tmp/oe-fresh-clone`,
+following only what `README.md` tells a new user to do:
+
+```
+$ git clone <repo> /tmp/oe-fresh-clone && cd /tmp/oe-fresh-clone
+$ npm install        # 251 packages, 0 vulnerabilities
+$ npm run build       # tsc, 0 errors
+$ npm test
+Test Files  9 passed (9)   Tests  73 passed (73)
+
+$ node scratch-smoke.mjs <fixture-vault> dist/cli.js   # real MCP client, real stdio subprocess
+tools/list: 12 tools
+vault_overview first line: # Vault Overview
+contains Hub Note reference: true
+```
+
+One real flaky test was caught and fixed during this exact gate run (see
+DECISIONS.md D14) — worth calling out precisely because this is what the
+"reproduce it yourself" final gate is for; it caught something the earlier
+phase-by-phase runs on the primary working tree hadn't hit.
+
+**Outstanding items, tracked in `HANDOFF.md`, not silently dropped:**
+- Docker daemon on this machine did not recover after the mid-Phase-4
+  disk-space incident despite ~10 restart/poll attempts across the session
+  (`docker compose config` — which needs no daemon — validates cleanly).
+  `docker build && docker run` itself is unverified.
+- Real Cloudflare Tunnel connection, real claude.ai connector registration,
+  and a real `launchctl`-installed LaunchAgent are all genuinely
+  unattended-environment-incompatible (need a browser, an Anthropic
+  account, and/or persistent host-level state respectively) — checklists
+  for a human are in `HANDOFF.md`.
+- `create_note`/`append_to_note` write tools (spec §5 priority 3) not
+  built — v0.1 as shipped is read-only only, called out in README.
