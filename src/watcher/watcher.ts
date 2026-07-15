@@ -42,7 +42,8 @@ export function startWatcher(options: StartWatcherOptions): FSWatcher {
 
   const handle = (type: WatchEventType, absPath: string): void => {
     const rel = toPosixPath(path.relative(options.vaultDir, absPath));
-    const scanResult = type === "unlink" ? applyFileDelete(options.db, rel) : applyFileUpsert(options.db, options.vaultDir, rel);
+    const scanResult =
+      type === "unlink" ? applyFileDelete(options.db, rel) : applyFileUpsert(options.db, options.vaultDir, rel);
     options.graph.applyScanResult(options.db, scanResult);
     options.onEvent?.({ type, path: rel, scanResult });
   };

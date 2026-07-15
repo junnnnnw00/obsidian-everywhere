@@ -76,7 +76,16 @@ export class VaultDB {
         .prepare(
           `UPDATE files SET title=?, is_markdown=?, mtime=?, hash=?, frontmatter_json=?, raw_content=?, updated_at=? WHERE id=?`,
         )
-        .run(meta.title, meta.isMarkdown ? 1 : 0, meta.mtime, meta.hash, meta.frontmatterJson, meta.rawContent, now, existing.id);
+        .run(
+          meta.title,
+          meta.isMarkdown ? 1 : 0,
+          meta.mtime,
+          meta.hash,
+          meta.frontmatterJson,
+          meta.rawContent,
+          now,
+          existing.id,
+        );
       this.upsertFts(existing.id, meta.path, meta.title, meta.rawContent);
       return existing.id;
     }
@@ -84,7 +93,16 @@ export class VaultDB {
       .prepare(
         `INSERT INTO files (path, title, is_markdown, mtime, hash, frontmatter_json, raw_content, updated_at) VALUES (?,?,?,?,?,?,?,?)`,
       )
-      .run(meta.path, meta.title, meta.isMarkdown ? 1 : 0, meta.mtime, meta.hash, meta.frontmatterJson, meta.rawContent, now);
+      .run(
+        meta.path,
+        meta.title,
+        meta.isMarkdown ? 1 : 0,
+        meta.mtime,
+        meta.hash,
+        meta.frontmatterJson,
+        meta.rawContent,
+        now,
+      );
     const id = Number(info.lastInsertRowid);
     this.upsertFts(id, meta.path, meta.title, meta.rawContent);
     return id;
@@ -139,7 +157,7 @@ export class VaultDB {
     );
     for (const link of links) {
       const resolved = resolveLink(link.targetRaw, resolverIndex);
-      const targetId = resolved ? this.getFileByPath(resolved.path)?.id ?? null : null;
+      const targetId = resolved ? (this.getFileByPath(resolved.path)?.id ?? null) : null;
       stmt.run(
         fileId,
         link.targetRaw,
@@ -183,14 +201,17 @@ export class VaultDB {
    * precise incremental diff instead of rebuilding.
    */
   reresolveAllLinks(resolverIndex: ResolverIndex): LinkChange[] {
-    const rows = this.db
-      .prepare("SELECT id, source_id, target_raw, target_id FROM links")
-      .all() as { id: number; source_id: number; target_raw: string; target_id: number | null }[];
+    const rows = this.db.prepare("SELECT id, source_id, target_raw, target_id FROM links").all() as {
+      id: number;
+      source_id: number;
+      target_raw: string;
+      target_id: number | null;
+    }[];
     const changes: LinkChange[] = [];
     const update = this.db.prepare("UPDATE links SET target_id = ? WHERE id = ?");
     for (const row of rows) {
       const resolved = resolveLink(row.target_raw, resolverIndex);
-      const newTargetId = resolved ? this.getFileByPath(resolved.path)?.id ?? null : null;
+      const newTargetId = resolved ? (this.getFileByPath(resolved.path)?.id ?? null) : null;
       if (newTargetId !== row.target_id) {
         update.run(newTargetId, row.id);
         changes.push({
@@ -257,9 +278,7 @@ export class VaultDB {
     const pattern = includeNested ? `${tag}%` : tag;
     const op = includeNested ? "LIKE" : "=";
     return this.db
-      .prepare(
-        `SELECT DISTINCT f.* FROM files f JOIN tags t ON t.file_id = f.id WHERE t.tag ${op} ? ORDER BY f.path`,
-      )
+      .prepare(`SELECT DISTINCT f.* FROM files f JOIN tags t ON t.file_id = f.id WHERE t.tag ${op} ? ORDER BY f.path`)
       .all(pattern) as FileRow[];
   }
 
@@ -275,7 +294,13 @@ export class VaultDB {
       .all() as FileRow[];
   }
 
-  findUnresolved(): { targetRaw: string; sourcePath: string; line: number | null; heading: string | null; blockId: string | null }[] {
+  findUnresolved(): {
+    targetRaw: string;
+    sourcePath: string;
+    line: number | null;
+    heading: string | null;
+    blockId: string | null;
+  }[] {
     return this.db
       .prepare(
         `SELECT l.target_raw as targetRaw, f.path as sourcePath, l.line as line, l.heading as heading, l.block_id as blockId
@@ -283,7 +308,13 @@ export class VaultDB {
          WHERE l.target_id IS NULL
          ORDER BY l.target_raw`,
       )
-      .all() as { targetRaw: string; sourcePath: string; line: number | null; heading: string | null; blockId: string | null }[];
+      .all() as {
+      targetRaw: string;
+      sourcePath: string;
+      line: number | null;
+      heading: string | null;
+      blockId: string | null;
+    }[];
   }
 
   countResolvedLinks(): number {

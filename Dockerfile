@@ -21,7 +21,7 @@ ENV OBSIDIAN_VAULT_PATH=/vault
 VOLUME ["/vault"]
 
 EXPOSE 3737 3738
-LABEL org.opencontainers.image.source="https://github.com/your-org/obsidian-everywhere"
+LABEL org.opencontainers.image.source="https://github.com/junnnnnw00/obsidian-everywhere"
 
 # Default to the static-bearer-token HTTP transport (the "lab server,
 # always-on fallback" role from docs/deploy.md — reached over Tailscale,

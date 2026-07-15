@@ -30,17 +30,11 @@ describe("parseNote", () => {
   it("parses note and image embeds distinctly from wikilinks", () => {
     const p = parseNote("![[Note A]]\n![[diagram.png]]\n[[Note A]]");
     const types = p.links.map((l) => `${l.type}:${l.targetRaw}`);
-    expect(types).toEqual([
-      "embed:Note A",
-      "embed:diagram.png",
-      "wikilink:Note A",
-    ]);
+    expect(types).toEqual(["embed:Note A", "embed:diagram.png", "wikilink:Note A"]);
   });
 
   it("parses markdown links but ignores external and anchor links", () => {
-    const p = parseNote(
-      "[Link to Note B](Note%20B.md)\n[External](https://example.com)\n[Anchor](#heading)",
-    );
+    const p = parseNote("[Link to Note B](Note%20B.md)\n[External](https://example.com)\n[Anchor](#heading)");
     expect(p.links).toHaveLength(1);
     expect(p.links[0]).toMatchObject({ type: "markdown", targetRaw: "Note B.md" });
   });
@@ -75,11 +69,7 @@ describe("parseNote", () => {
 
   it("parses nested inline tags", () => {
     const p = parseNote("#project #status/active #priority/high/urgent");
-    expect(p.tags.map((t) => t.tag)).toEqual([
-      "project",
-      "status/active",
-      "priority/high/urgent",
-    ]);
+    expect(p.tags.map((t) => t.tag)).toEqual(["project", "status/active", "priority/high/urgent"]);
   });
 
   it("does not treat purely numeric hashes as tags", () => {

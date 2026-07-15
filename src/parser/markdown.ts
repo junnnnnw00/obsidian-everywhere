@@ -1,11 +1,5 @@
 import matter from "gray-matter";
-import type {
-  ParsedBlock,
-  ParsedHeading,
-  ParsedLink,
-  ParsedNote,
-  ParsedTag,
-} from "./types.js";
+import type { ParsedBlock, ParsedHeading, ParsedLink, ParsedNote, ParsedTag } from "./types.js";
 
 const WIKILINK_RE = /(!)?\[\[([^\]]+)\]\]/g;
 const MARKDOWN_LINK_RE = /\[([^\]]*)\]\(([^)]+)\)/g;

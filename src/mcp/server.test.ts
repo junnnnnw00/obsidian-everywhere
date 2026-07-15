@@ -121,7 +121,10 @@ describe("MCP stdio-layer tool server", () => {
   it("get_context_bundle respects its token budget (checked with a real BPE tokenizer)", async () => {
     const budget = 300;
     const text = textOf(
-      (await client.callTool({ name: "get_context_bundle", arguments: { topic: "Hub Note", tokenBudget: budget } })) as any,
+      (await client.callTool({
+        name: "get_context_bundle",
+        arguments: { topic: "Hub Note", tokenBudget: budget },
+      })) as any,
     );
     const actualTokens = encode(text).length;
     // The tool's internal accounting uses a cheap chars/4 heuristic, not the
@@ -132,10 +135,16 @@ describe("MCP stdio-layer tool server", () => {
 
   it("get_context_bundle includes more content under a larger budget", async () => {
     const small = textOf(
-      (await client.callTool({ name: "get_context_bundle", arguments: { topic: "Hub Note", tokenBudget: 120 } })) as any,
+      (await client.callTool({
+        name: "get_context_bundle",
+        arguments: { topic: "Hub Note", tokenBudget: 120 },
+      })) as any,
     );
     const large = textOf(
-      (await client.callTool({ name: "get_context_bundle", arguments: { topic: "Hub Note", tokenBudget: 4000 } })) as any,
+      (await client.callTool({
+        name: "get_context_bundle",
+        arguments: { topic: "Hub Note", tokenBudget: 4000 },
+      })) as any,
     );
     expect(encode(large).length).toBeGreaterThan(encode(small).length);
   });
@@ -147,9 +156,7 @@ describe("MCP stdio-layer tool server", () => {
   });
 
   it("get_notes_by_tag finds notes by nested tag", async () => {
-    const text = textOf(
-      (await client.callTool({ name: "get_notes_by_tag", arguments: { tag: "project" } })) as any,
-    );
+    const text = textOf((await client.callTool({ name: "get_notes_by_tag", arguments: { tag: "project" } })) as any);
     expect(text).toContain("Nested Tag Child.md");
   });
 
@@ -160,7 +167,10 @@ describe("MCP stdio-layer tool server", () => {
 
   it("find_path finds the shortest undirected connection between two notes", async () => {
     const text = textOf(
-      (await client.callTool({ name: "find_path", arguments: { from: "Backlink Test A", to: "Backlink Test B" } })) as any,
+      (await client.callTool({
+        name: "find_path",
+        arguments: { from: "Backlink Test A", to: "Backlink Test B" },
+      })) as any,
     );
     expect(text).toContain("2 hops");
     expect(text).toContain("Hub Note.md");

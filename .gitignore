@@ -1,8 +1,17 @@
 node_modules/
 dist/
 *.log
+npm-debug.log*
 .obsidian-everywhere/
 .DS_Store
+Thumbs.db
 coverage/
 *.tsbuildinfo
 .env
+.env.*
+!.env.example
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+logs/

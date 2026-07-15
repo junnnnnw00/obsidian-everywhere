@@ -13,7 +13,9 @@ function resolveConfig(): { vaultDir: string; dbPath: string; port: number; issu
   }
   const issuer = process.env.OAUTH_ISSUER_URL;
   if (!issuer) {
-    console.error("OAUTH_ISSUER_URL must be set to this server's public HTTPS origin (e.g. https://obsidian.example.com).");
+    console.error(
+      "OAUTH_ISSUER_URL must be set to this server's public HTTPS origin (e.g. https://obsidian.example.com).",
+    );
     process.exit(1);
   }
   const loginSecret = process.env.OAUTH_LOGIN_SECRET;
@@ -37,12 +39,18 @@ async function main(): Promise<void> {
 
   const enableWriteTools = oauthWriteToolsEnabled();
   if (!enableWriteTools) {
-    console.error("Write tools (create_note/append_to_note) are disabled by default on the public OAuth connector. Set OAUTH_ENABLE_WRITE_TOOLS=true to enable them.");
+    console.error(
+      "Write tools (create_note/append_to_note) are disabled by default on the public OAuth connector. Set OAUTH_ENABLE_WRITE_TOOLS=true to enable them.",
+    );
   }
   const app = createOAuthHttpApp(engine, { issuerUrl, loginSecret, enableWriteTools });
   const httpServer = app.listen(port, () => {
-    console.error(`obsidian-everywhere OAuth HTTP server listening on :${port} (issuer: ${issuerUrl}, vault: ${vaultDir})`);
-    console.error("This process must sit behind a reverse proxy (e.g. Cloudflare Tunnel) that terminates HTTPS at the issuer URL.");
+    console.error(
+      `obsidian-everywhere OAuth HTTP server listening on :${port} (issuer: ${issuerUrl}, vault: ${vaultDir})`,
+    );
+    console.error(
+      "This process must sit behind a reverse proxy (e.g. Cloudflare Tunnel) that terminates HTTPS at the issuer URL.",
+    );
   });
 
   const shutdown = async (): Promise<void> => {

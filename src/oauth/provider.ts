@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { Response } from "express";
-import { InvalidGrantError, InvalidRequestError, InvalidTokenError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
+import {
+  InvalidGrantError,
+  InvalidRequestError,
+  InvalidTokenError,
+} from "@modelcontextprotocol/sdk/server/auth/errors.js";
 import type { AuthorizationParams, OAuthServerProvider } from "@modelcontextprotocol/sdk/server/auth/provider.js";
 import type { OAuthRegisteredClientsStore } from "@modelcontextprotocol/sdk/server/auth/clients.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
@@ -129,10 +133,7 @@ export class SingleUserOAuthProvider implements OAuthServerProvider {
     return codeData.params.codeChallenge;
   }
 
-  async exchangeAuthorizationCode(
-    client: OAuthClientInformationFull,
-    authorizationCode: string,
-  ): Promise<OAuthTokens> {
+  async exchangeAuthorizationCode(client: OAuthClientInformationFull, authorizationCode: string): Promise<OAuthTokens> {
     const codeData = this.codes.get(authorizationCode);
     if (!codeData) throw new InvalidGrantError("Invalid authorization code");
     if (codeData.client.client_id !== client.client_id) {
@@ -160,7 +161,11 @@ export class SingleUserOAuthProvider implements OAuthServerProvider {
     };
   }
 
-  async exchangeRefreshToken(client: OAuthClientInformationFull, refreshToken: string, scopes?: string[]): Promise<OAuthTokens> {
+  async exchangeRefreshToken(
+    client: OAuthClientInformationFull,
+    refreshToken: string,
+    scopes?: string[],
+  ): Promise<OAuthTokens> {
     const data = this.refreshTokens.get(refreshToken);
     if (!data || data.clientId !== client.client_id) throw new InvalidGrantError("Invalid refresh token");
 

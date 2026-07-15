@@ -275,5 +275,69 @@ phase-by-phase runs on the primary working tree hadn't hit.
   unattended-environment-incompatible (need a browser, an Anthropic
   account, and/or persistent host-level state respectively) — checklists
   for a human are in `HANDOFF.md`.
-- `create_note`/`append_to_note` write tools (spec §5 priority 3) not
-  built — v0.1 as shipped is read-only only, called out in README.
+- `create_note`/`append_to_note` write tools were not yet built as of this
+  gate (spec §5 priority 3) — since promoted to shipped, see below.
+
+## 2026-07-16 01:00 — Post-launch: write tools, real-vault validation, FOSS readiness
+
+User feedback after the initial v0.1 handoff: write tools are important
+(not optional), the project needs to be genuinely usable day-to-day (not
+just fixture-tested), and it needs real FOSS repo hygiene for a GitHub
+push. All addressed:
+
+- **Real-vault validation.** Ran the full engine (`VaultEngine.init()`)
+  and the MCP tool layer against a real personal vault (`~/jwhong`, 58
+  markdown notes + 36 attachments, 56MB, Korean content, DSLab
+  research notes) — not just the 31-note fixture vault. Indexed cleanly in
+  70ms, graph consistency check passed, PageRank/search/context-bundle all
+  produced sane output. Caught one real display bug this way: three
+  distinct wikilinks to the same unresolved note (different block
+  anchors) rendered as apparent duplicates in `find_unresolved` — fixed by
+  including the heading/block fragment in the display (`db.ts`
+  `findUnresolved` now selects `heading`/`block_id`; `tools.ts` renders
+  them). This would not have been caught by the fixture vault, which
+  didn't have a case of 3 links-to-different-blocks-of-one-unresolved-note
+  on a single line.
+- **`create_note` / `append_to_note`** (see DECISIONS.md D15): real write
+  tools, not stubs. Path-traversal-safe (`toSafeVaultRelPath`/
+  `resolveWithinVault`), synchronously reindexed
+  (`VaultEngine.indexFileNow`) so the note is queryable by the *next* tool
+  call without waiting on the watcher, fail-closed on a missing heading.
+  Verified against both the isolated fixture-copy test suite (8 new tests
+  in `write-tools.test.ts`) *and* a real round-trip against `~/jwhong`
+  (create → verify on disk → append → verify → clean up, confirmed no
+  artifacts left behind).
+- **FOSS/GitHub readiness:**
+  - `package.json`: added `repository`/`homepage`/`bugs`/`keywords`/`author`
+    metadata (github.com/junnnnnw00/obsidian-everywhere), removed an
+    unused `nanoid` dependency (D16) that had been added speculatively
+    during Phase 0 scaffolding and never actually used.
+  - ESLint (flat config) + Prettier added and wired into `npm run
+    lint`/`format`/`format:check` and CI (D17). Ran once across the
+    codebase: 1 auto-fixable ESLint warning, 17 files reformatted by
+    Prettier (whitespace/line-wrap only) — confirmed 99/99 tests still
+    pass after.
+  - `.gitignore` hardened for a real GitHub push (IDE folders, `.env.*`
+    variants, LaunchAgent log output) — scanned all tracked files for
+    secret-shaped strings and `.env` files; none found.
+  - Added `CONTRIBUTING.md` (dev setup, testing conventions — especially
+    "no mocking the core engine," "write-tool tests never touch the
+    committed fixture vault directly"), `CODE_OF_CONDUCT.md` (Contributor
+    Covenant 2.1), `SECURITY.md` (vulnerability reporting + this project's
+    trust model, since it does handle bearer tokens/OAuth secrets),
+    `CHANGELOG.md` (v0.1.0 entry), GitHub issue templates
+    (bug/feature) and a PR template, `.editorconfig`.
+  - README: updated tool table/count (14, not 12), added CI + license
+    badges, a Contributing section, fixed the `git clone <this-repo>`
+    placeholder to the real URL.
+
+**Gate evidence:**
+
+```
+$ npm run typecheck && npm run lint && npm run format:check && npm run build && npm test
+tsc: 0 errors
+eslint: 0 errors, 0 warnings
+prettier --check: all files formatted
+tsc build: 0 errors
+Test Files  12 passed (12)   Tests  99 passed (99)
+```

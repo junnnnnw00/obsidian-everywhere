@@ -34,13 +34,7 @@ describe("VaultGraph over fixture vault", () => {
     const hub = db.getFileByPath("Hub Note.md")!;
     const { nodes, edges } = graph.neighborhood(hub.id, 1);
     const paths = nodes.map((n) => n.path).sort();
-    expect(paths).toEqual([
-      "Backlink Test A.md",
-      "Backlink Test B.md",
-      "Backlink Test C.md",
-      "Home.md",
-      "Hub Note.md",
-    ]);
+    expect(paths).toEqual(["Backlink Test A.md", "Backlink Test B.md", "Backlink Test C.md", "Home.md", "Hub Note.md"]);
     expect(edges.length).toBe(4);
   });
 

@@ -82,12 +82,7 @@ describe("fullScan against fixture vault", () => {
   it("computes backlinks for a hub note", () => {
     const backlinks = db.getBacklinks("Hub Note.md");
     const sources = backlinks.map((b) => b.sourcePath).sort();
-    expect(sources).toEqual([
-      "Backlink Test A.md",
-      "Backlink Test B.md",
-      "Backlink Test C.md",
-      "Home.md",
-    ]);
+    expect(sources).toEqual(["Backlink Test A.md", "Backlink Test B.md", "Backlink Test C.md", "Home.md"]);
   });
 
   it("finds orphan notes", () => {

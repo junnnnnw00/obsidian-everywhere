@@ -1,5 +1,8 @@
 # Obsidian Everywhere
 
+[![CI](https://github.com/junnnnnw00/obsidian-everywhere/actions/workflows/ci.yml/badge.svg)](https://github.com/junnnnnw00/obsidian-everywhere/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 An MCP server that exposes your Obsidian vault's knowledge graph to every
 Claude client — local Claude Code, Claude Desktop, a remote Claude Code
 over Tailscale, and the claude.ai web/mobile custom connector.
@@ -56,7 +59,7 @@ See [`docs/architecture.md`](docs/architecture.md) for how it's built and
 ## Quickstart
 
 ```bash
-git clone <this-repo>
+git clone https://github.com/junnnnnw00/obsidian-everywhere.git
 cd obsidian-everywhere
 npm install
 npm run build
@@ -158,6 +161,13 @@ Cloudflare Tunnel account setup, and a final Docker build/run check — see
 `HANDOFF.md` for why those specifically couldn't be finished unattended).
 Tested against a real personal vault (58 notes, 36 attachments, Korean
 content) in addition to the fixture vault — see PROGRESS.md.
+
+## Contributing
+
+Bug reports, feature requests, and PRs are welcome — see
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for dev setup, testing conventions,
+and how the fixture vault relates to the test suite. Security issues:
+please see [`SECURITY.md`](SECURITY.md) rather than opening a public issue.
 
 ## License
 

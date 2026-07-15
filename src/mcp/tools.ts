@@ -41,9 +41,7 @@ export function vaultOverview(engine: VaultEngine): string {
       : ["_vault has no linked notes yet_"]),
     "",
     "## Recently modified",
-    ...(recent.length
-      ? recent.map((f) => `- [[${f.path}]] — ${new Date(f.mtime).toISOString()}`)
-      : ["_no notes_"]),
+    ...(recent.length ? recent.map((f) => `- [[${f.path}]] — ${new Date(f.mtime).toISOString()}`) : ["_no notes_"]),
   ];
   return lines.join("\n");
 }
@@ -71,7 +69,9 @@ export function searchNotes(engine: VaultEngine, args: SearchNotesArgs): string 
     candidates = candidates.filter((f) => f.path.startsWith(prefix));
   }
   if (args.tag) {
-    candidates = candidates.filter((f) => engine.db.getTagsForFile(f.id).some((t) => t.tag === args.tag || t.tag.startsWith(`${args.tag}/`)));
+    candidates = candidates.filter((f) =>
+      engine.db.getTagsForFile(f.id).some((t) => t.tag === args.tag || t.tag.startsWith(`${args.tag}/`)),
+    );
   }
 
   candidates = candidates.slice(0, limit);
@@ -137,7 +137,9 @@ export function getBacklinks(engine: VaultEngine, args: { path: string }): strin
   if (backlinks.length === 0) return `# Backlinks for ${file.path}\n\n_none_`;
   const lines = [`# Backlinks for ${file.path} (${backlinks.length})`, ""];
   for (const b of backlinks) {
-    lines.push(`- **[[${b.sourcePath}]]** (${b.type}${b.line ? `, line ${b.line}` : ""}): ${b.context ? `"${b.context}"` : ""}`);
+    lines.push(
+      `- **[[${b.sourcePath}]]** (${b.type}${b.line ? `, line ${b.line}` : ""}): ${b.context ? `"${b.context}"` : ""}`,
+    );
   }
   return lines.join("\n");
 }
@@ -170,7 +172,11 @@ export interface ContextBundleArgs {
   tokenBudget?: number;
 }
 
-function relationLabel(edges: { source: number; target: number; type: string }[], centerId: number, neighborId: number): string {
+function relationLabel(
+  edges: { source: number; target: number; type: string }[],
+  centerId: number,
+  neighborId: number,
+): string {
   const rels = new Set<string>();
   for (const e of edges) {
     if (e.source === centerId && e.target === neighborId) rels.add(`→ ${e.type}`);
@@ -229,7 +235,9 @@ export function getContextBundle(engine: VaultEngine, args: ContextBundleArgs): 
 
   parts.push(...neighborBlocks);
   const used = tokenBudget - budget;
-  parts.push(`\n---\n*(≈${used}/${tokenBudget} tokens used, ${neighborBlocks.length}/${neighbors.length} neighbors included)*`);
+  parts.push(
+    `\n---\n*(≈${used}/${tokenBudget} tokens used, ${neighborBlocks.length}/${neighbors.length} neighbors included)*`,
+  );
 
   return parts.join("").trim();
 }
@@ -299,7 +307,8 @@ export function findPath(engine: VaultEngine, args: FindPathArgs): string {
   if (!toFile) return `Note not found: ${args.to}`;
 
   const path = engine.graph.shortestPath(fromFile.id, toFile.id);
-  if (!path) return `# Path from ${fromFile.path} to ${toFile.path}\n\nNo connection found — the notes are in disconnected parts of the graph.`;
+  if (!path)
+    return `# Path from ${fromFile.path} to ${toFile.path}\n\nNo connection found — the notes are in disconnected parts of the graph.`;
 
   const lines: string[] = [
     `# Path from ${fromFile.path} to ${toFile.path}`,
@@ -371,7 +380,10 @@ export function findUnresolved(engine: VaultEngine): string {
   const rows = engine.db.findUnresolved();
   if (rows.length === 0) return "# Unresolved Links\n\n_none — every link resolves_";
 
-  const byTarget = new Map<string, { sourcePath: string; line: number | null; heading: string | null; blockId: string | null }[]>();
+  const byTarget = new Map<
+    string,
+    { sourcePath: string; line: number | null; heading: string | null; blockId: string | null }[]
+  >();
   for (const r of rows) {
     const list = byTarget.get(r.targetRaw) ?? [];
     list.push({ sourcePath: r.sourcePath, line: r.line, heading: r.heading, blockId: r.blockId });
@@ -413,7 +425,8 @@ export function createNote(engine: VaultEngine, args: CreateNoteArgs): string {
   }
 
   const body = args.content ?? "";
-  const fileText = args.frontmatter && Object.keys(args.frontmatter).length > 0 ? matter.stringify(body, args.frontmatter) : body;
+  const fileText =
+    args.frontmatter && Object.keys(args.frontmatter).length > 0 ? matter.stringify(body, args.frontmatter) : body;
 
   mkdirSync(path.dirname(absPath), { recursive: true });
   writeFileSync(absPath, fileText, "utf8");

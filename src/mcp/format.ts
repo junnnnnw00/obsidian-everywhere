@@ -58,7 +58,10 @@ export function extractSection(
       break;
     }
   }
-  return lines.slice(target.line - 1, endLine - 1).join("\n").trim();
+  return lines
+    .slice(target.line - 1, endLine - 1)
+    .join("\n")
+    .trim();
 }
 
 export function truncateToTokens(text: string, maxTokens: number): string {

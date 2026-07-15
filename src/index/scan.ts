@@ -5,7 +5,7 @@ import { parseNote } from "../parser/markdown.js";
 import type { ParsedLink } from "../parser/types.js";
 import { DEFAULT_EXCLUDE_DIRS, isMarkdownPath, shouldExclude, toPosixPath } from "../vault/paths.js";
 import type { LinkChange } from "./db.js";
-import { VaultDB } from "./db.js";
+import type { VaultDB } from "./db.js";
 
 export interface DiskFile {
   relPath: string;
@@ -49,7 +49,9 @@ function hashFile(file: DiskFile, isMarkdown: boolean): { hash: string; content:
     const hash = createHash("sha1").update(content).digest("hex");
     return { hash, content };
   }
-  const hash = createHash("sha1").update(`${file.size}:${Math.round(file.mtimeMs)}`).digest("hex");
+  const hash = createHash("sha1")
+    .update(`${file.size}:${Math.round(file.mtimeMs)}`)
+    .digest("hex");
   return { hash, content: null };
 }
 

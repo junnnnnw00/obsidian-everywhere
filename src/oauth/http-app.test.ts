@@ -18,11 +18,22 @@ interface RawResponse {
   body: string;
 }
 
-function rawRequest(options: { method: string; url: string; headers?: Record<string, string>; body?: string }): Promise<RawResponse> {
+function rawRequest(options: {
+  method: string;
+  url: string;
+  headers?: Record<string, string>;
+  body?: string;
+}): Promise<RawResponse> {
   return new Promise((resolve, reject) => {
     const u = new URL(options.url);
     const req = http.request(
-      { hostname: u.hostname, port: u.port, path: u.pathname + u.search, method: options.method, headers: options.headers },
+      {
+        hostname: u.hostname,
+        port: u.port,
+        path: u.pathname + u.search,
+        method: options.method,
+        headers: options.headers,
+      },
       (res) => {
         let data = "";
         res.on("data", (chunk) => (data += chunk));
@@ -191,7 +202,11 @@ describe("OAuth 2.1 flow (PKCE + Dynamic Client Registration) — real HTTP, loc
         jsonrpc: "2.0",
         id: 1,
         method: "initialize",
-        params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "oauth-e2e-test", version: "0.0.0" } },
+        params: {
+          protocolVersion: "2025-11-25",
+          capabilities: {},
+          clientInfo: { name: "oauth-e2e-test", version: "0.0.0" },
+        },
       }),
     });
     expect(initRes.status).toBe(200);
@@ -219,7 +234,12 @@ describe("OAuth 2.1 flow (PKCE + Dynamic Client Registration) — real HTTP, loc
         "Content-Type": "application/json",
         Accept: "application/json, text/event-stream",
       },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "vault_overview", arguments: {} } }),
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: { name: "vault_overview", arguments: {} },
+      }),
     });
     expect(callRes.status).toBe(200);
     expect(callRes.body).toContain("Vault Overview");
@@ -229,7 +249,11 @@ describe("OAuth 2.1 flow (PKCE + Dynamic Client Registration) — real HTTP, loc
     const badTokenRes = await rawRequest({
       method: "POST",
       url: `${issuerUrl}/mcp`,
-      headers: { Authorization: "Bearer not-a-real-token", "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      headers: {
+        Authorization: "Bearer not-a-real-token",
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
       body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/list", params: {} }),
     });
     expect(badTokenRes.status).toBe(401);

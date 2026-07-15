@@ -1,9 +1,26 @@
 {
   "name": "obsidian-everywhere",
   "version": "0.1.0",
-  "description": "MCP server that exposes an Obsidian vault as a knowledge graph to every Claude client.",
+  "description": "MCP server that exposes an Obsidian vault's knowledge graph to every Claude client — local, remote, and claude.ai.",
   "license": "MIT",
   "type": "module",
+  "author": "junnnnnw00",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/junnnnnw00/obsidian-everywhere.git"
+  },
+  "homepage": "https://github.com/junnnnnw00/obsidian-everywhere#readme",
+  "bugs": {
+    "url": "https://github.com/junnnnnw00/obsidian-everywhere/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "obsidian",
+    "claude",
+    "knowledge-graph",
+    "pkm"
+  ],
   "bin": {
     "obsidian-everywhere": "./dist/cli.js",
     "obsidian-everywhere-http": "./dist/http-cli.js",
@@ -23,7 +40,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "tsc -p tsconfig.json --noEmit"
+    "lint": "eslint src",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
@@ -34,16 +53,19 @@
     "graphology-metrics": "^2.3.1",
     "graphology-shortest-path": "^2.1.0",
     "gray-matter": "^4.0.3",
-    "nanoid": "^5.1.5",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^7.6.12",
     "@types/express": "^4.17.21",
     "@types/node": "^22.13.5",
+    "eslint": "^10.7.0",
     "gpt-tokenizer": "^3.4.0",
+    "prettier": "3.9.5",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3",
+    "typescript-eslint": "^8.64.0",
     "vitest": "^3.0.7"
   }
 }

@@ -40,7 +40,10 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
       description:
         "Full-text search over note content and titles, with optional tag/folder filters. Each result includes its outgoing/incoming link counts and tags.",
       inputSchema: {
-        query: z.string().optional().describe("Full-text search query (FTS5 syntax). Omit to just filter by tag/folder."),
+        query: z
+          .string()
+          .optional()
+          .describe("Full-text search query (FTS5 syntax). Omit to just filter by tag/folder."),
         tag: z.string().optional().describe("Filter to notes carrying this tag (nested tags match as a prefix)."),
         folder: z.string().optional().describe("Filter to notes under this vault-relative folder path."),
         limit: z.number().int().positive().max(100).optional().describe("Max results (default 10)."),
@@ -124,7 +127,10 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
       description: "List every note carrying a given tag.",
       inputSchema: {
         tag: z.string().describe("Tag without the leading #, e.g. 'project/alpha'."),
-        includeNested: z.boolean().optional().describe("Include notes tagged with nested children of this tag (default true)."),
+        includeNested: z
+          .boolean()
+          .optional()
+          .describe("Include notes tagged with nested children of this tag (default true)."),
       },
       annotations: READ_ONLY,
     },
@@ -176,7 +182,8 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
     "find_unresolved",
     {
       title: "Find Unresolved Links",
-      description: "List links that don't resolve to any note in the vault, grouped by target — useful for vault maintenance.",
+      description:
+        "List links that don't resolve to any note in the vault, grouped by target — useful for vault maintenance.",
       inputSchema: {},
       annotations: READ_ONLY,
     },
@@ -191,9 +198,14 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         description:
           "Create a new note in the vault. Fails if the note already exists unless overwrite is set. The note is indexed immediately — outlinks/tags in its content become real graph edges right away, visible to the very next tool call.",
         inputSchema: {
-          path: z.string().describe("Vault-relative path for the new note, e.g. 'Projects/New Idea' (`.md` is added automatically)."),
+          path: z
+            .string()
+            .describe("Vault-relative path for the new note, e.g. 'Projects/New Idea' (`.md` is added automatically)."),
           content: z.string().optional().describe("Note body (markdown, without frontmatter)."),
-          frontmatter: z.record(z.string(), z.unknown()).optional().describe("Frontmatter fields (tags, aliases, or any custom field)."),
+          frontmatter: z
+            .record(z.string(), z.unknown())
+            .optional()
+            .describe("Frontmatter fields (tags, aliases, or any custom field)."),
           overwrite: z.boolean().optional().describe("Replace the note if it already exists (default false)."),
         },
         annotations: WRITE,
@@ -210,7 +222,10 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         inputSchema: {
           path: z.string().describe("Note path, title, or alias — must already exist."),
           content: z.string().describe("Markdown content to append."),
-          heading: z.string().optional().describe("Append at the end of this heading's section instead of the end of the file."),
+          heading: z
+            .string()
+            .optional()
+            .describe("Append at the end of this heading's section instead of the end of the file."),
         },
         annotations: WRITE,
       },

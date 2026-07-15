@@ -58,9 +58,7 @@ describe("write tools (create_note, append_to_note) — isolated writable vault 
     expect(onDisk).toContain("tags:");
     expect(onDisk).toContain("Links to [[Note A]].");
 
-    const backlinks = textOf(
-      (await client.callTool({ name: "get_backlinks", arguments: { path: "Note A" } })) as any,
-    );
+    const backlinks = textOf((await client.callTool({ name: "get_backlinks", arguments: { path: "Note A" } })) as any);
     expect(backlinks).toContain("New Idea.md");
 
     const search = textOf((await client.callTool({ name: "search_notes", arguments: { tag: "idea" } })) as any);
@@ -137,7 +135,10 @@ describe("write tools (create_note, append_to_note) — isolated writable vault 
 
   it("append_to_note reports an error for a note that doesn't exist, without creating it", async () => {
     const result = textOf(
-      (await client.callTool({ name: "append_to_note", arguments: { path: "Does Not Exist At All", content: "x" } })) as any,
+      (await client.callTool({
+        name: "append_to_note",
+        arguments: { path: "Does Not Exist At All", content: "x" },
+      })) as any,
     );
     expect(result).toMatch(/not found/i);
   });

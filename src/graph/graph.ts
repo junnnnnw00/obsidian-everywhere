@@ -130,7 +130,12 @@ export class VaultGraph {
   /** Apply a scan result: resync touched nodes' edges, drop removed nodes. */
   applyScanResult(
     db: VaultDB,
-    scanResult: { addedFiles: string[]; updatedFiles: string[]; removedFiles: string[]; linkChanges: { sourceId: number }[] },
+    scanResult: {
+      addedFiles: string[];
+      updatedFiles: string[];
+      removedFiles: string[];
+      linkChanges: { sourceId: number }[];
+    },
   ): void {
     for (const path of scanResult.removedFiles) this.removeNodeByPath(path);
 
