@@ -12,6 +12,9 @@ function textResult(text: string) {
 const READ_ONLY = { readOnlyHint: true, openWorldHint: false };
 const WRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
 
+export const SERVER_INSTRUCTIONS =
+  "Use vault_overview to orient yourself in an unfamiliar vault. Prefer get_context_bundle for broad topic context and read_note for one specific note or heading. Use search_notes when a note is not known exactly. Treat note paths as vault-relative. Before calling create_note or append_to_note, confirm that the user intends to modify the vault; use read tools without confirmation.";
+
 export interface CreateServerOptions {
   /** Register create_note/append_to_note. Defaults to true — set to false for a read-only deployment (e.g. a public connector you don't fully trust). */
   enableWriteTools?: boolean;
@@ -19,7 +22,10 @@ export interface CreateServerOptions {
 
 export function createServer(engine: VaultEngine, options: CreateServerOptions = {}): McpServer {
   const enableWriteTools = options.enableWriteTools ?? true;
-  const server = new McpServer({ name: "obsidian-everywhere", version: VERSION }, { capabilities: { tools: {} } });
+  const server = new McpServer(
+    { name: "obsidian-everywhere", version: VERSION },
+    { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
+  );
 
   server.registerTool(
     "vault_overview",

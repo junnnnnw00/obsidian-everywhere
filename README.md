@@ -1,8 +1,10 @@
 <div align="center">
 
+[English](README.md) | [한국어](README.ko.md)
+
 # 🧠 Obsidian Everywhere
 
-**Your Obsidian vault, as a graph, in every Claude client.**
+**Your Obsidian vault, as a graph, in Codex, ChatGPT, Claude, and other MCP clients.**
 
 [![CI](https://github.com/junnnnnw00/obsidian-everywhere/actions/workflows/ci.yml/badge.svg)](https://github.com/junnnnnw00/obsidian-everywhere/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -11,13 +13,13 @@
 [![MCP](https://img.shields.io/badge/MCP-server-6b4fbb)](https://modelcontextprotocol.io)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-*Local Claude Code · Claude Desktop · a remote box over Tailscale · claude.ai web & mobile — one server, every surface.*
+*Codex CLI · ChatGPT Desktop (Codex) · Claude Code/Desktop · remote clients — one server, every surface.*
 
 </div>
 
 ---
 
-**This is a graph server, not a markdown file server.** Claude shouldn't see
+**This is a graph server, not a markdown file server.** Your AI client shouldn't see
 your vault as "a folder of `.md` files" — it should see notes and links as a
 graph: backlink traversal, n-hop neighborhoods, and topic-centered context
 bundles are first-class tools, not an afterthought bolted onto a file
@@ -58,10 +60,10 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
   layer for n-hop traversal, shortest paths, and PageRank — kept in sync
   incrementally as files change, never rebuilt from scratch.
 - 🛠️ **14 graph-native MCP tools** — 12 read-only, 2 write.
-- 🔌 **Three ways to connect** — stdio for local Claude clients,
-  Streamable HTTP with a static bearer token for a remote Claude Code over
-  Tailscale, and Streamable HTTP with OAuth 2.1 (PKCE + Dynamic Client
-  Registration) for the claude.ai custom connector.
+- 🔌 **Three ways to connect** — stdio for local MCP clients (including
+  Codex CLI, ChatGPT Desktop, and Claude), Streamable HTTP with a static
+  bearer token for private remote clients, and Streamable HTTP with OAuth
+  2.1 (PKCE + Dynamic Client Registration) for public connectors.
 
 <details>
 <summary><strong>Full tool list</strong></summary>
@@ -106,14 +108,14 @@ See [`docs/architecture.md`](docs/architecture.md) for how it's built and
 **The `obsidian-everywhere` process needs direct filesystem access to your
 vault's `.md` files** (to parse them, watch for changes, etc.) — so it
 must always run on **the machine where your vault physically lives**
-("the vault machine": your laptop, most likely). It does not matter where
-you're typing `claude` from — the *server* always runs on the vault
+("the vault machine": your laptop, most likely). It does not matter which
+client machine you're working from — the *server* always runs on the vault
 machine; only the *client* connection method changes.
 
-| Where you run `claude` from | What you need |
+| Where you use the MCP client | What you need |
 |---|---|
-| The same machine as the vault | **stdio.** Nothing else — Claude Code/Desktop spawns the server directly. |
-| A different machine you control (a lab/work server, another laptop, an SSH box) | **Bearer-token HTTP** + a private network between the two machines (we recommend [Tailscale](https://tailscale.com/download) — free, five-minute setup, works across NAT/firewalls without port forwarding). |
+| The same machine as the vault | **stdio.** Nothing else — Codex, ChatGPT Desktop, Claude Code/Desktop, or another local client spawns the server directly. |
+| A different machine you control (a lab/work server, another laptop, an SSH box) | **Bearer-token HTTP** + a private network between the two machines (we recommend [Tailscale](https://tailscale.com/download)). |
 | claude.ai (web app or mobile app) | **OAuth HTTP** + a public HTTPS URL (via [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)). claude.ai runs in Anthropic's cloud, not your network, so it can't reach Tailscale or `localhost` — it needs a real public address. |
 
 You can run more than one of these at once (e.g. stdio on your laptop
@@ -131,7 +133,37 @@ npm install
 npm run build
 ```
 
-### Option A — Claude Code, same machine as the vault (stdio)
+### Option A — Codex CLI and ChatGPT Desktop, same machine as the vault (stdio)
+
+Codex CLI, the Codex IDE extension, and ChatGPT Desktop's Codex experience
+share the same MCP configuration ([official MCP documentation](https://learn.chatgpt.com/docs/extend/mcp)).
+Add the server once:
+
+```bash
+codex mcp add obsidian-everywhere -- node "$(pwd)/dist/cli.js" /absolute/path/to/your/vault
+codex mcp list
+```
+
+Then restart ChatGPT Desktop (or the IDE extension). In ChatGPT Desktop you
+can also add it through **Settings → MCP servers → Add server**, choose
+**STDIO**, and enter the same command and arguments. Type `/mcp` in Codex to
+confirm that the server and its 14 tools are connected.
+
+For a project-scoped configuration instead, add this to a trusted project's
+`.codex/config.toml`; use `~/.codex/config.toml` to make it available globally:
+
+```toml
+[mcp_servers.obsidian-everywhere]
+command = "node"
+args = ["/absolute/path/to/obsidian-everywhere/dist/cli.js", "/absolute/path/to/your/vault"]
+startup_timeout_sec = 30
+```
+
+Use absolute paths. GUI apps often do not inherit the same `PATH` as your
+terminal; if `node` is not found, replace `command` with the result of
+`command -v node`.
+
+### Option A′ — Claude Code, same machine as the vault (stdio)
 
 Still on the vault machine:
 
@@ -145,7 +177,7 @@ Or with environment variables instead of a positional arg:
 OBSIDIAN_VAULT_PATH=/path/to/your/vault claude mcp add obsidian-everywhere -- node "$(pwd)/dist/cli.js"
 ```
 
-### Option A′ — Claude Desktop, same machine as the vault
+### Option A″ — Claude Desktop, same machine as the vault
 
 Add to `claude_desktop_config.json` on the vault machine:
 
@@ -160,7 +192,7 @@ Add to `claude_desktop_config.json` on the vault machine:
 }
 ```
 
-### Option A″ — Google Antigravity CLI (agy)
+### Option A‴ — Google Antigravity CLI (agy)
 
 Add to your global Antigravity MCP configuration file (`~/.gemini/config/mcp_config.json`):
 
@@ -175,13 +207,13 @@ Add to your global Antigravity MCP configuration file (`~/.gemini/config/mcp_con
 }
 ```
 
-### Option B — Claude Code on a *different* machine (a lab/work server, etc.)
+### Option B — Codex, ChatGPT Desktop, or Claude on a different machine
 
 **Step 1 — set up a private network between the two machines**, if you
 don't have one already. Easiest option is Tailscale:
 
 ```bash
-# on BOTH the vault machine and the machine you'll run `claude` from
+# on BOTH the vault machine and the MCP client machine
 curl -fsSL https://tailscale.com/install.sh | sh   # or: brew install tailscale (macOS)
 tailscale up                                        # opens a browser to log in / join your "tailnet"
 tailscale status                                    # confirm both machines can see each other
@@ -199,12 +231,26 @@ OBSIDIAN_VAULT_PATH=/path/to/vault OBSIDIAN_EVERYWHERE_TOKEN=$(openssl rand -hex
 
 Keep this token — you'll need it in step 3. (To keep this running
 persistently instead of in a foreground terminal, see the LaunchAgent
-setup in [`docs/deploy.md`](docs/deploy.md#2-remote-claude-code-over-tailscale-static-bearer-token),
+setup in [`docs/deploy.md`](docs/deploy.md#2-remote-clients-over-tailscale-static-bearer-token),
 or run it in Docker via `docker-compose.yml` if the vault machine is a server.)
 
-**Step 3 — connect from the *other* machine** (the lab server, etc. —
-wherever you actually type `claude`), using the vault machine's Tailscale
-address from step 1:
+**Step 3 — connect from the *other* machine** (the lab server, etc.), using
+the vault machine's Tailscale address from step 1. For Codex (and the shared
+ChatGPT Desktop configuration), keep the token in an environment variable:
+
+```bash
+export OBSIDIAN_EVERYWHERE_CLIENT_TOKEN="<the token from step 2>"
+codex mcp add obsidian-everywhere \
+  --url http://<vault-machine-tailscale-name>:3737/mcp \
+  --bearer-token-env-var OBSIDIAN_EVERYWHERE_CLIENT_TOKEN
+```
+
+Ensure ChatGPT Desktop is launched with that environment variable available,
+then restart it. Alternatively, use **Settings → MCP servers** to add the
+Streamable HTTP URL and bearer credential if your app version exposes those
+fields.
+
+For Claude Code:
 
 ```bash
 claude mcp add --transport http obsidian-everywhere \
@@ -212,9 +258,9 @@ claude mcp add --transport http obsidian-everywhere \
   --header "Authorization: Bearer <the token from step 2>"
 ```
 
-That's it — `claude` on the second machine now has full access to the
-vault indexed on the first. Full walkthrough (Docker, LaunchAgent):
-[`docs/deploy.md`](docs/deploy.md#2-remote-claude-code-over-tailscale-static-bearer-token).
+The second machine now has access to the vault indexed on the first. Full
+walkthrough (Docker, LaunchAgent):
+[`docs/deploy.md`](docs/deploy.md#2-remote-clients-over-tailscale-static-bearer-token).
 
 ### Option C — claude.ai web/mobile app (custom connector, OAuth)
 
@@ -270,11 +316,11 @@ exclusion, and Korean filenames/tags/wikilinks). It's what every test in
 ## Project status
 
 v0.1, feature-complete: full graph engine, all three transports (stdio,
-bearer-token HTTP, OAuth HTTP), 14 MCP tools including write tools. A few
-things need a human to finish (registering the claude.ai connector, an
-actual Cloudflare Tunnel account) since they require a browser/account —
-see `docs/deploy.md`. Tested against both the fixture vault and a real
-58-note personal vault with Korean content.
+bearer-token HTTP, OAuth HTTP), 14 MCP tools including write tools, and
+client setup for Codex, ChatGPT Desktop, and Claude. Browser/account steps
+such as registering a public connector and provisioning a Cloudflare Tunnel
+remain manual — see `docs/deploy.md`. Tested against both the fixture vault
+and a real 58-note personal vault with Korean content.
 
 ## Contributing
 

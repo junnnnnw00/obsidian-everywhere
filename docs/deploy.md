@@ -1,24 +1,26 @@
 # Deployment guide
 
-Obsidian Everywhere has three deployment targets, matching three different
-Claude clients. All three can point at the same vault simultaneously — the
-SQLite index (`.obsidian-everywhere/index.db`) is per-process, so if you run
-more than one transport against the same vault directory, either point them
-at different `OBSIDIAN_EVERYWHERE_DB` paths or accept that each process
-maintains its own index (writes to the vault's markdown files are never
-made by this server itself in v0.1, so there's no write-write conflict —
-see "Vault sync" below).
+[English](deploy.md) | [한국어](deploy.ko.md)
+
+Obsidian Everywhere has three deployment targets, matching local, private
+remote, and public MCP clients. All three can point at the same vault
+simultaneously — the SQLite index (`.obsidian-everywhere/index.db`) is
+per-process, so if you run more than one transport against the same vault
+directory, either point them at different `OBSIDIAN_EVERYWHERE_DB` paths or
+accept that each process maintains its own index. The write tools modify
+Markdown files, so avoid concurrent writes to the same note and let your
+vault sync system resolve cross-host conflicts. See "Vault sync" below.
 
 | Client | Transport | Auth | Where it runs |
 |---|---|---|---|
-| Local Claude Code / Claude Desktop | stdio | none (local process) | Same machine as the client |
-| Remote Claude Code (e.g. lab server ↔ MacBook) | Streamable HTTP | static bearer token | Behind Tailscale only — never expose publicly |
+| Local Codex CLI / ChatGPT Desktop / Claude | stdio | none (local process) | Same machine as the vault |
+| Remote Codex / ChatGPT Desktop / Claude | Streamable HTTP | static bearer token | Behind Tailscale only — never expose publicly |
 | claude.ai web/mobile custom connector | Streamable HTTP | OAuth 2.1 (PKCE + DCR) | Public HTTPS via a reverse proxy (Cloudflare Tunnel) |
 
 ## Topology this was built for
 
-- **Host 1 — M1 MacBook**: runs locally via `claude mcp add` (stdio) for the
-  user's own Claude Code/Desktop, *and* runs the bearer-token HTTP service
+- **Host 1 — M1 MacBook**: runs locally via stdio for Codex, ChatGPT Desktop,
+  Claude, or another MCP client, *and* runs the bearer-token HTTP service
   as a LaunchAgent so other machines on the Tailscale network can reach it
   when the laptop is awake.
 - **Host 2 — lab server container**: Docker, always-on fallback for when
@@ -32,17 +34,25 @@ synchronization. See "Vault sync" below for what it does handle.
 
 ---
 
-## 1. Local stdio (Claude Code / Claude Desktop on the same machine)
+## 1. Local stdio (Codex / ChatGPT Desktop / Claude on the same machine)
 
 ```bash
 npm install
 npm run build
+codex mcp add obsidian-everywhere -- node "$(pwd)/dist/cli.js" /path/to/your/vault
+```
+
+Codex CLI, its IDE extension, and ChatGPT Desktop share `~/.codex/config.toml`.
+Restart ChatGPT Desktop after adding the server. Claude Code can register the
+same stdio command separately:
+
+```bash
 claude mcp add obsidian-everywhere -- node "$(pwd)/dist/cli.js" /path/to/your/vault
 ```
 
-See the README for the Claude Desktop `claude_desktop_config.json` equivalent.
+See the README for manual `config.toml` and Claude Desktop JSON examples.
 
-## 2. Remote Claude Code over Tailscale (static bearer token)
+## 2. Remote clients over Tailscale (static bearer token)
 
 Install as a LaunchAgent on the MacBook (Host 1):
 
@@ -59,9 +69,18 @@ to `logs/http.{out,err}.log`. Verify:
 curl http://127.0.0.1:3737/healthz
 ```
 
-On the *other* machine (e.g. the lab server), point Claude Code at it over
-your Tailscale network — put the MacBook's Tailscale hostname and the token
-in the client's MCP HTTP transport config, e.g.:
+On the *other* machine (e.g. the lab server), point the MCP client at it over
+your Tailscale network. Codex and ChatGPT Desktop share this registration:
+
+```bash
+export OBSIDIAN_EVERYWHERE_CLIENT_TOKEN="<the token>"
+codex mcp add obsidian-everywhere-remote \
+  --url http://<macbook-tailscale-name>:3737/mcp \
+  --bearer-token-env-var OBSIDIAN_EVERYWHERE_CLIENT_TOKEN
+```
+
+The token environment variable must be available to the client process,
+including when ChatGPT Desktop launches. For Claude Code:
 
 ```bash
 claude mcp add --transport http obsidian-everywhere-remote \

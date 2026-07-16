@@ -67,6 +67,11 @@ describe("MCP stdio-layer tool server", () => {
     }
   });
 
+  it("advertises server-wide tool guidance during MCP initialization", () => {
+    expect(client.getInstructions()).toContain("vault_overview");
+    expect(client.getInstructions()).toContain("confirm that the user intends to modify the vault");
+  });
+
   it("vault_overview reports hub notes and tag distribution", async () => {
     const result = await client.callTool({ name: "vault_overview", arguments: {} });
     const text = textOf(result as any);

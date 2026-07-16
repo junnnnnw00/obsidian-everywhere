@@ -13,6 +13,7 @@ coverage/
 .vscode/
 !.vscode/extensions.json
 .idea/
+.codex/
 *.swp
 logs/
 
