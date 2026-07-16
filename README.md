@@ -160,6 +160,21 @@ Add to `claude_desktop_config.json` on the vault machine:
 }
 ```
 
+### Option A″ — Google Antigravity CLI (agy)
+
+Add to your global Antigravity MCP configuration file (`~/.gemini/config/mcp_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "obsidian-everywhere": {
+      "command": "node",
+      "args": ["/absolute/path/to/obsidian-everywhere/dist/cli.js", "/absolute/path/to/your/vault"]
+    }
+  }
+}
+```
+
 ### Option B — Claude Code on a *different* machine (a lab/work server, etc.)
 
 **Step 1 — set up a private network between the two machines**, if you
