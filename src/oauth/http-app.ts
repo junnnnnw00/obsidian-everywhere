@@ -11,7 +11,7 @@ export interface OAuthHttpAppOptions {
   issuerUrl: URL;
   /** Single pre-shared login secret (see D11 in DECISIONS.md). */
   loginSecret: string;
-  /** Register create_note/append_to_note. Defaults to true here too — oauth-http-cli.ts defaults this to false at the CLI layer instead, since a public connector is a bigger attack surface (see D15). */
+  /** Register all write tools. Defaults to true here too — oauth-http-cli.ts defaults this to false at the CLI layer instead, since a public connector is a bigger attack surface (see D15). */
   enableWriteTools?: boolean;
 }
 

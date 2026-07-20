@@ -17,7 +17,8 @@ function resolveConfig(): { vaultDir: string; dbPath: string; port: number; bear
     process.exit(1);
   }
   const resolvedVault = path.resolve(vaultDir);
-  const dbPath = process.env.OBSIDIAN_EVERYWHERE_DB ?? path.join(resolvedVault, ".obsidian-everywhere", "index.db");
+  const dbPath =
+    process.env.OBSIDIAN_EVERYWHERE_DB ?? path.join(resolvedVault, ".obsidian-everywhere", "index-http.db");
   const port = Number(process.env.PORT ?? 3737);
   return { vaultDir: resolvedVault, dbPath, port, bearerToken };
 }

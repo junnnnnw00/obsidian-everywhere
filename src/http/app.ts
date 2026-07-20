@@ -8,7 +8,7 @@ import type { VaultEngine } from "../vault-engine.js";
 export interface HttpAppOptions {
   /** Static bearer token required on every /mcp request. */
   bearerToken: string;
-  /** Register create_note/append_to_note. Defaults to true. */
+  /** Register all write tools. Defaults to true. */
   enableWriteTools?: boolean;
 }
 

@@ -25,7 +25,7 @@ services:
       - "3737:3737"
     environment:
       OBSIDIAN_VAULT_PATH: /vault
-      OBSIDIAN_EVERYWHERE_DB: /vault/.obsidian-everywhere/index.db
+      OBSIDIAN_EVERYWHERE_DB: /vault/.obsidian-everywhere/index-http.db
       OBSIDIAN_EVERYWHERE_TOKEN: ${OBSIDIAN_EVERYWHERE_TOKEN:?set a bearer token in .env}
       OBSIDIAN_EVERYWHERE_READONLY: ${OBSIDIAN_EVERYWHERE_READONLY:-false}
       PORT: "3737"

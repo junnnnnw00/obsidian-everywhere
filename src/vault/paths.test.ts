@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveWithinVault, toSafeVaultRelPath } from "./paths.js";
+import { resolveWithinVault, shouldExclude, toSafeVaultRelPath } from "./paths.js";
 
 describe("toSafeVaultRelPath", () => {
   it("appends .md when missing", () => {
@@ -53,5 +53,12 @@ describe("resolveWithinVault", () => {
   it("throws if a path somehow still resolves outside the vault", () => {
     // toSafeVaultRelPath should already prevent this upstream; this is defense in depth.
     expect(() => resolveWithinVault(vaultDir, "../outside.md")).toThrow(/escapes/);
+  });
+});
+
+describe("shouldExclude", () => {
+  it("excludes recoverable trash and atomic-write temporary files", () => {
+    expect(shouldExclude(".trash/Old Note.md")).toBe(true);
+    expect(shouldExclude("Folder/Note.md.oe-tmp-123")).toBe(true);
   });
 });

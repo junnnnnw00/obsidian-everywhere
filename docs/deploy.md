@@ -4,10 +4,9 @@
 
 Obsidian Everywhere has three deployment targets, matching local, private
 remote, and public MCP clients. All three can point at the same vault
-simultaneously — the SQLite index (`.obsidian-everywhere/index.db`) is
-per-process, so if you run more than one transport against the same vault
-directory, either point them at different `OBSIDIAN_EVERYWHERE_DB` paths or
-accept that each process maintains its own index. The write tools modify
+simultaneously. Their default SQLite files are transport-specific
+(`index-stdio.db`, `index-http.db`, and `index-oauth.db`). If you override
+`OBSIDIAN_EVERYWHERE_DB`, keep the path unique per process. The write tools modify
 Markdown files, so avoid concurrent writes to the same note and let your
 vault sync system resolve cross-host conflicts. See "Vault sync" below.
 

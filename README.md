@@ -48,7 +48,7 @@ vault (.md files)
 SQLite index (FTS5)  ⇄  in-memory graph (graphology)
   │                       n-hop · shortest path · PageRank
   ▼
-14 MCP tools
+31 MCP tools
   │
   ▼
 stdio  ·  bearer-token HTTP  ·  OAuth HTTP
@@ -59,7 +59,7 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
   with full-text search, and an in-memory [graphology](https://graphology.github.io/)
   layer for n-hop traversal, shortest paths, and PageRank — kept in sync
   incrementally as files change, never rebuilt from scratch.
-- 🛠️ **14 graph-native MCP tools** — 12 read-only, 2 write.
+- 🛠️ **31 graph-native MCP tools** — graph navigation, structured/paginated reads, safe lifecycle and partial edits, rollback-capable bulk cleanup, regex/listing, Base checks, and persisted Obsidian settings.
 - 🔌 **Three ways to connect** — stdio for local MCP clients (including
   Codex CLI, ChatGPT Desktop, and Claude), Streamable HTTP with a static
   bearer token for private remote clients, and Streamable HTTP with OAuth
@@ -74,7 +74,10 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 |---|---|
 | `vault_overview` | Note counts, top tags, PageRank hub notes, recently modified — a starting orientation |
 | `search_notes` | Full-text search with tag/folder filters, each result annotated with link counts and tags |
-| `read_note` | Full note + graph context header (outlinks/backlinks/tags/frontmatter); optional heading-scoped read |
+| `read_note` | Structured content/frontmatter/links/tags plus line pagination; optional heading-scoped read |
+| `list_notes` | Explicit folder-aware note listing with pagination |
+| `list_folder` | Immediate child folders, notes, and attachments |
+| `regex_search` | JavaScript-regex search with file, line, and excerpt |
 | `get_backlinks` | Every note linking to a given note, with the linking sentence |
 | `get_neighborhood` | Explicit n-hop node/edge list around a note (links treated as undirected) |
 | `get_context_bundle` | **The killer feature.** Center note + prioritized 1-hop neighbors packed into a token budget |
@@ -84,6 +87,8 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 | `find_unresolved` | Links that don't resolve to any note, grouped by target |
 | `find_path` | Shortest connection path between two notes, with a one-line summary per hop |
 | `get_related` | Similar notes that *aren't* directly linked yet (Jaccard similarity over shared tags/neighbors) |
+| `get_hotkeys` / `get_obsidian_settings` | Persisted hotkey command IDs, Templates folder, and core-plugin settings |
+| `validate_base` | Static YAML/shape validation for `.base` files or fenced Base blocks |
 
 **Write**
 
@@ -91,8 +96,13 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 |---|---|
 | `create_note` | Create a new note (with frontmatter); reindexed immediately — the next tool call already sees it |
 | `append_to_note` | Append to a note, optionally under a specific heading; fails closed if the heading isn't found |
+| `move_note` / `rename_note` / `delete_note` | Lifecycle operations with inbound-link rewriting, backlink guardrails, and recoverable trash |
+| `replace_text` / `patch_section` | Guarded exact-text and heading-scoped edits |
+| `update_frontmatter` / `remove_frontmatter_field` | Change properties without replacing the note body |
+| `bulk_replace` / `rollback_bulk_edit` | Dry-run-first folder/regex replacement with snapshots and rollback |
+| `set_hotkey` / `set_templates_folder` | Update persisted Obsidian settings (vault reload may be required) |
 
-`create_note`/`append_to_note` are on by default for stdio and the
+Write tools are on by default for stdio and the
 bearer-token HTTP transport, and off by default for the public OAuth
 connector transport (opt in with `OAUTH_ENABLE_WRITE_TOOLS=true`) — see
 [Configuration](#configuration) and DECISIONS.md D15.
@@ -147,7 +157,7 @@ codex mcp list
 Then restart ChatGPT Desktop (or the IDE extension). In ChatGPT Desktop you
 can also add it through **Settings → MCP servers → Add server**, choose
 **STDIO**, and enter the same command and arguments. Type `/mcp` in Codex to
-confirm that the server and its 14 tools are connected.
+confirm that the server and its 31 tools are connected.
 
 For a project-scoped configuration instead, add this to a trusted project's
 `.codex/config.toml`; use `~/.codex/config.toml` to make it available globally:
@@ -286,13 +296,13 @@ that with no Cloudflare/OAuth involved.
 | Env var | Used by | Meaning |
 |---|---|---|
 | `OBSIDIAN_VAULT_PATH` | all | Vault path (or pass as a positional CLI arg) |
-| `OBSIDIAN_EVERYWHERE_DB` | all | SQLite index path (default: `<vault>/.obsidian-everywhere/index.db`) |
+| `OBSIDIAN_EVERYWHERE_DB` | all | SQLite index path override. Defaults are transport-specific: `index-stdio.db`, `index-http.db`, or `index-oauth.db` under `<vault>/.obsidian-everywhere/`. |
 | `OBSIDIAN_EVERYWHERE_TOKEN` | `http-cli.js` | Static bearer token |
 | `PORT` | `http-cli.js`, `oauth-http-cli.js` | HTTP port (defaults 3737 / 3738) |
 | `OAUTH_ISSUER_URL` | `oauth-http-cli.js` | Public HTTPS origin (e.g. your Cloudflare Tunnel hostname) |
 | `OAUTH_LOGIN_SECRET` | `oauth-http-cli.js` | Single-user login secret |
-| `OBSIDIAN_EVERYWHERE_READONLY` | `cli.js`, `http-cli.js` | Set to `true` to disable `create_note`/`append_to_note` (default: write tools on) |
-| `OAUTH_ENABLE_WRITE_TOOLS` | `oauth-http-cli.js` | Set to `true` to enable `create_note`/`append_to_note` on the public connector (default: off) |
+| `OBSIDIAN_EVERYWHERE_READONLY` | `cli.js`, `http-cli.js` | Set to `true` to disable all write tools (default: write tools on) |
+| `OAUTH_ENABLE_WRITE_TOOLS` | `oauth-http-cli.js` | Set to `true` to enable all write tools on the public connector (default: off) |
 
 ## Development
 
@@ -315,8 +325,8 @@ exclusion, and Korean filenames/tags/wikilinks). It's what every test in
 
 ## Project status
 
-v0.1, feature-complete: full graph engine, all three transports (stdio,
-bearer-token HTTP, OAuth HTTP), 14 MCP tools including write tools, and
+v0.2: full graph engine, all three transports (stdio,
+bearer-token HTTP, OAuth HTTP), 31 MCP tools including safe partial/bulk writes, and
 client setup for Codex, ChatGPT Desktop, and Claude. Browser/account steps
 such as registering a public connector and provisioning a Cloudflare Tunnel
 remain manual — see `docs/deploy.md`. Tested against both the fixture vault

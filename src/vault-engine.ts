@@ -1,7 +1,7 @@
 import type { FSWatcher } from "chokidar";
 import { VaultGraph } from "./graph/graph.js";
 import { VaultDB } from "./index/db.js";
-import { applyFileUpsert, fullScan, type ScanResult } from "./index/scan.js";
+import { applyFileDelete, applyFileUpsert, fullScan, type ScanResult } from "./index/scan.js";
 import { DEFAULT_EXCLUDE_DIRS } from "./vault/paths.js";
 import { startWatcher, type WatchEvent } from "./watcher/watcher.js";
 
@@ -44,6 +44,20 @@ export class VaultEngine {
   indexFileNow(relPath: string): ScanResult {
     const result = applyFileUpsert(this.db, this.vaultDir, relPath);
     this.graph.applyScanResult(this.db, result);
+    return result;
+  }
+
+  /** Remove one file from the index immediately after a write tool deletes it. */
+  deleteFileNow(relPath: string): ScanResult {
+    const result = applyFileDelete(this.db, relPath);
+    this.graph.applyScanResult(this.db, result);
+    return result;
+  }
+
+  /** Reconcile a multi-file filesystem transaction and rebuild the in-memory graph. */
+  refreshNow(): ScanResult {
+    const result = fullScan(this.db, this.vaultDir, this.excludeDirs);
+    this.graph.loadFull(this.db);
     return result;
   }
 

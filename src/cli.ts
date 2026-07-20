@@ -12,7 +12,8 @@ function resolveConfig(): { vaultDir: string; dbPath: string } {
     process.exit(1);
   }
   const resolvedVault = path.resolve(vaultDir);
-  const dbPath = process.env.OBSIDIAN_EVERYWHERE_DB ?? path.join(resolvedVault, ".obsidian-everywhere", "index.db");
+  const dbPath =
+    process.env.OBSIDIAN_EVERYWHERE_DB ?? path.join(resolvedVault, ".obsidian-everywhere", "index-stdio.db");
   return { vaultDir: resolvedVault, dbPath };
 }
 

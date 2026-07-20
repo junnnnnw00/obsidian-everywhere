@@ -24,7 +24,8 @@ function resolveConfig(): { vaultDir: string; dbPath: string; port: number; issu
     process.exit(1);
   }
   const resolvedVault = path.resolve(vaultDir);
-  const dbPath = process.env.OBSIDIAN_EVERYWHERE_DB ?? path.join(resolvedVault, ".obsidian-everywhere", "index.db");
+  const dbPath =
+    process.env.OBSIDIAN_EVERYWHERE_DB ?? path.join(resolvedVault, ".obsidian-everywhere", "index-oauth.db");
   const port = Number(process.env.PORT ?? 3738);
   return { vaultDir: resolvedVault, dbPath, port, issuerUrl: new URL(issuer), loginSecret };
 }
@@ -40,7 +41,7 @@ async function main(): Promise<void> {
   const enableWriteTools = oauthWriteToolsEnabled();
   if (!enableWriteTools) {
     console.error(
-      "Write tools (create_note/append_to_note) are disabled by default on the public OAuth connector. Set OAUTH_ENABLE_WRITE_TOOLS=true to enable them.",
+      "Write tools are disabled by default on the public OAuth connector. Set OAUTH_ENABLE_WRITE_TOOLS=true to enable them.",
     );
   }
   const app = createOAuthHttpApp(engine, { issuerUrl, loginSecret, enableWriteTools });

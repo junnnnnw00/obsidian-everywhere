@@ -2,7 +2,7 @@ function isTruthyEnv(value: string | undefined): boolean {
   return value === "1" || value?.toLowerCase() === "true";
 }
 
-/** Write tools (create_note/append_to_note) are on by default; set OBSIDIAN_EVERYWHERE_READONLY=true to disable. */
+/** All write tools are on by default; set OBSIDIAN_EVERYWHERE_READONLY=true to disable them. */
 export function writeToolsEnabledByDefault(): boolean {
   return !isTruthyEnv(process.env.OBSIDIAN_EVERYWHERE_READONLY);
 }

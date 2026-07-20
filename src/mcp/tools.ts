@@ -1,10 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import matter from "gray-matter";
 import type { FileRow } from "../index/db.js";
 import { parseNote } from "../parser/markdown.js";
 import { resolveLink } from "../vault/resolve.js";
 import { resolveWithinVault, toSafeVaultRelPath } from "../vault/paths.js";
+import { writeFileAtomic } from "../vault/write.js";
 import type { VaultEngine } from "../vault-engine.js";
 import { estimateTokens, extractSection, firstParagraph, formatFrontmatter, truncateToTokens } from "./format.js";
 
@@ -91,41 +91,257 @@ export function searchNotes(engine: VaultEngine, args: SearchNotesArgs): string 
   return lines.join("\n").trim();
 }
 
+export interface ListNotesArgs {
+  folder?: string;
+  recursive?: boolean;
+  offset?: number;
+  limit?: number;
+}
+
+export function listFolder(engine: VaultEngine, args: { folder?: string }): string {
+  const folder = args.folder?.replace(/^\/+|\/+$/g, "") ?? "";
+  const prefix = folder ? `${folder}/` : "";
+  const folders = new Set<string>();
+  const files: FileRow[] = [];
+  for (const file of engine.db.getAllFiles()) {
+    if (!file.path.startsWith(prefix)) continue;
+    const remainder = file.path.slice(prefix.length);
+    if (!remainder) continue;
+    const slash = remainder.indexOf("/");
+    if (slash === -1) files.push(file);
+    else folders.add(remainder.slice(0, slash));
+  }
+  files.sort((a, b) => a.path.localeCompare(b.path));
+  if (!folders.size && !files.length) return `Folder not found or empty: ${folder || "/"}`;
+  const folderLines = [...folders].sort().map((name) => `- ${prefix}${name}/`);
+  return [
+    `# Folder: ${folder || "/"}`,
+    "",
+    "## Folders",
+    ...(folderLines.length ? folderLines : ["_none_"]),
+    "",
+    "## Files",
+    ...(files.length
+      ? files.map((file) => `- ${file.path}${file.is_markdown === 1 ? " (note)" : " (attachment)"}`)
+      : ["_none_"]),
+  ].join("\n");
+}
+
+export interface NoteListData {
+  notes: { path: string; title: string | null; mtime: string; tags: string[] }[];
+  folders: string[];
+  pagination: { offset: number; limit: number; total: number; hasMore: boolean; nextOffset: number | null };
+}
+
+export function listNotesData(engine: VaultEngine, args: ListNotesArgs): NoteListData {
+  const folder = args.folder?.replace(/^\/+|\/+$/g, "") ?? "";
+  const prefix = folder ? `${folder}/` : "";
+  const recursive = args.recursive ?? true;
+  const matching = engine.db
+    .getAllFiles()
+    .filter((file) => file.is_markdown === 1 && file.path.startsWith(prefix))
+    .filter((file) => recursive || !file.path.slice(prefix.length).includes("/"))
+    .sort((a, b) => a.path.localeCompare(b.path));
+  const folders = new Set<string>();
+  for (const file of engine.db.getAllFiles()) {
+    if (!file.path.startsWith(prefix)) continue;
+    const remainder = file.path.slice(prefix.length);
+    const first = remainder.split("/")[0];
+    if (first && remainder.includes("/")) folders.add(prefix + first);
+  }
+  const offset = Math.min(args.offset ?? 0, matching.length);
+  const limit = args.limit ?? 100;
+  const page = matching.slice(offset, offset + limit);
+  const nextOffset = offset + page.length;
+  return {
+    notes: page.map((file) => ({
+      path: file.path,
+      title: file.title,
+      mtime: new Date(file.mtime).toISOString(),
+      tags: engine.db.getTagsForFile(file.id).map((tag) => tag.tag),
+    })),
+    folders: [...folders].sort(),
+    pagination: {
+      offset,
+      limit,
+      total: matching.length,
+      hasMore: nextOffset < matching.length,
+      nextOffset: nextOffset < matching.length ? nextOffset : null,
+    },
+  };
+}
+
+export function listNotes(engine: VaultEngine, args: ListNotesArgs): string {
+  const data = listNotesData(engine, args);
+  const lines = [
+    `# Notes (${data.notes.length}/${data.pagination.total})`,
+    "",
+    ...(data.folders.length ? ["## Folders", ...data.folders.map((folder) => `- ${folder}/`), ""] : []),
+    "## Notes",
+    ...(data.notes.length ? data.notes.map((note) => `- [[${note.path}]]`) : ["_none_"]),
+  ];
+  if (data.pagination.hasMore) lines.push("", `Continue with offset ${data.pagination.nextOffset}.`);
+  return lines.join("\n");
+}
+
+export interface RegexSearchArgs {
+  pattern: string;
+  folder?: string;
+  flags?: string;
+  limit?: number;
+}
+
+export function regexSearch(engine: VaultEngine, args: RegexSearchArgs): string {
+  if (!args.pattern || args.pattern.length > 500) return "Error: pattern must be 1-500 characters.";
+  let regex: RegExp;
+  try {
+    const flags = args.flags ?? "i";
+    if (/[^imsu]/.test(flags)) return "Error: flags may only contain i, m, s, and u.";
+    regex = new RegExp(args.pattern, flags.replace(/g/g, ""));
+  } catch (err) {
+    return `Error: invalid regular expression: ${(err as Error).message}`;
+  }
+  const folder = args.folder?.replace(/^\/+|\/+$/g, "");
+  const limit = args.limit ?? 50;
+  const results: { path: string; line: number; text: string }[] = [];
+  for (const file of engine.db
+    .getAllFiles()
+    .filter((row) => row.is_markdown === 1)
+    .sort((a, b) => a.path.localeCompare(b.path))) {
+    if (folder && !file.path.startsWith(`${folder}/`)) continue;
+    const lines = (file.raw_content ?? "").split(/\r\n|\n/);
+    for (let i = 0; i < lines.length; i++) {
+      regex.lastIndex = 0;
+      if (regex.test(lines[i] ?? "")) {
+        results.push({ path: file.path, line: i + 1, text: (lines[i] ?? "").trim().slice(0, 300) });
+        if (results.length >= limit) break;
+      }
+    }
+    if (results.length >= limit) break;
+  }
+  if (!results.length) return "No regex matches found.";
+  return [
+    `# Regex Search Results (${results.length})`,
+    "",
+    ...results.map((r) => `- [[${r.path}]]:${r.line} — ${r.text}`),
+  ].join("\n");
+}
+
 export interface ReadNoteArgs {
   path: string;
   heading?: string;
+  /** Zero-based line offset within the full note or selected heading. */
+  offset?: number;
+  /** Maximum number of lines to return. Defaults to 500. */
+  limit?: number;
 }
 
-export function readNote(engine: VaultEngine, args: ReadNoteArgs): string {
+export interface ReadNoteData {
+  path: string;
+  title: string | null;
+  content: string;
+  frontmatter: Record<string, unknown>;
+  outlinks: { target: string; resolvedPath: string | null; type: string; line: number | null }[];
+  backlinks: { sourcePath: string; type: string; line: number | null; context: string | null }[];
+  tags: string[];
+  pagination: {
+    offset: number;
+    limit: number;
+    returnedLines: number;
+    totalLines: number;
+    hasMore: boolean;
+    nextOffset: number | null;
+  };
+  heading?: string;
+  warning?: string;
+}
+
+function parseFrontmatterJson(value: string | null): Record<string, unknown> {
+  if (!value) return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function readNoteData(engine: VaultEngine, args: ReadNoteArgs): ReadNoteData | { error: string } {
   const file = resolveNoteArg(engine, args.path);
-  if (!file) return `Note not found: ${args.path}`;
+  if (!file) return { error: `Note not found: ${args.path}` };
 
   const outlinks = engine.db.getOutlinks(file.path);
   const backlinks = engine.db.getBacklinks(file.path);
-  const tags = engine.db.getTagsForFile(file.id).map((t) => `#${t.tag}`);
-  const frontmatter = formatFrontmatter(file.frontmatter_json);
+  const tags = engine.db.getTagsForFile(file.id).map((t) => t.tag);
 
   const body = file.raw_content ?? "";
-  let bodyOut = body;
+  let selectedBody = body;
+  let warning: string | undefined;
   if (args.heading) {
     const headings = engine.db.getHeadingsForFile(file.id);
     const section = extractSection(body, headings, args.heading);
-    bodyOut = section ?? `_(heading "${args.heading}" not found — showing full note)_\n\n${body}`;
+    if (section === null) warning = `Heading "${args.heading}" not found; showing the full note.`;
+    else selectedBody = section;
   }
 
+  const allLines = selectedBody.split(/\r\n|\n/);
+  const offset = Math.min(args.offset ?? 0, allLines.length);
+  const limit = args.limit ?? 500;
+  const pageLines = allLines.slice(offset, offset + limit);
+  const nextOffset = offset + pageLines.length;
+  const hasMore = nextOffset < allLines.length;
+
+  return {
+    path: file.path,
+    title: file.title,
+    content: pageLines.join("\n"),
+    frontmatter: parseFrontmatterJson(file.frontmatter_json),
+    outlinks: outlinks.map((link) => ({
+      target: link.targetRaw,
+      resolvedPath: link.targetPath,
+      type: link.type,
+      line: link.line,
+    })),
+    backlinks: backlinks.map((link) => ({
+      sourcePath: link.sourcePath,
+      type: link.type,
+      line: link.line,
+      context: link.context,
+    })),
+    tags,
+    pagination: {
+      offset,
+      limit,
+      returnedLines: pageLines.length,
+      totalLines: allLines.length,
+      hasMore,
+      nextOffset: hasMore ? nextOffset : null,
+    },
+    ...(args.heading ? { heading: args.heading } : {}),
+    ...(warning ? { warning } : {}),
+  };
+}
+
+export function readNote(engine: VaultEngine, args: ReadNoteArgs): string {
+  const data = readNoteData(engine, args);
+  if ("error" in data) return data.error;
+  const frontmatter = Object.keys(data.frontmatter).length ? formatFrontmatter(JSON.stringify(data.frontmatter)) : "";
+
   const lines: string[] = [
-    `# ${file.title ?? file.path}`,
-    `*${file.path}*`,
+    `# ${data.title ?? data.path}`,
+    `*${data.path}*`,
     "",
     "## Graph Context",
-    `- **Outlinks (${outlinks.length})**: ${outlinks.length ? outlinks.map((l) => (l.targetPath ? `[[${l.targetPath}]]` : `${l.targetRaw} (unresolved)`)).join(", ") : "_none_"}`,
-    `- **Backlinks (${backlinks.length})**: ${backlinks.length ? backlinks.map((b) => `[[${b.sourcePath}]]`).join(", ") : "_none_"}`,
-    `- **Tags**: ${tags.length ? tags.join(" ") : "_none_"}`,
+    `- **Outlinks (${data.outlinks.length})**: ${data.outlinks.length ? data.outlinks.map((l) => (l.resolvedPath ? `[[${l.resolvedPath}]]` : `${l.target} (unresolved)`)).join(", ") : "_none_"}`,
+    `- **Backlinks (${data.backlinks.length})**: ${data.backlinks.length ? data.backlinks.map((b) => `[[${b.sourcePath}]]`).join(", ") : "_none_"}`,
+    `- **Tags**: ${data.tags.length ? data.tags.map((tag) => `#${tag}`).join(" ") : "_none_"}`,
     ...(frontmatter ? ["- **Frontmatter**:", frontmatter] : []),
+    ...(data.warning ? [`- **Warning**: ${data.warning}`] : []),
+    `- **Page**: lines ${data.pagination.offset + 1}-${data.pagination.offset + data.pagination.returnedLines} of ${data.pagination.totalLines}${data.pagination.hasMore ? `; continue with offset ${data.pagination.nextOffset}` : ""}`,
     "",
     "---",
     "",
-    bodyOut,
+    data.content,
   ];
   return lines.join("\n");
 }
@@ -428,9 +644,12 @@ export function createNote(engine: VaultEngine, args: CreateNoteArgs): string {
   const fileText =
     args.frontmatter && Object.keys(args.frontmatter).length > 0 ? matter.stringify(body, args.frontmatter) : body;
 
-  mkdirSync(path.dirname(absPath), { recursive: true });
-  writeFileSync(absPath, fileText, "utf8");
-  engine.indexFileNow(relPath);
+  try {
+    writeFileAtomic(absPath, fileText);
+    engine.indexFileNow(relPath);
+  } catch (err) {
+    return `Error: ${(err as Error).message}`;
+  }
 
   return `Created ${relPath}.\n\n${readNote(engine, { path: relPath })}`;
 }
@@ -475,8 +694,12 @@ export function appendToNote(engine: VaultEngine, args: AppendToNoteArgs): strin
   newBody = newBody.replace(/\n{3,}/g, "\n\n");
 
   const fileText = Object.keys(parsed.frontmatter).length > 0 ? matter.stringify(newBody, parsed.frontmatter) : newBody;
-  writeFileSync(absPath, fileText, "utf8");
-  engine.indexFileNow(file.path);
+  try {
+    writeFileAtomic(absPath, fileText);
+    engine.indexFileNow(file.path);
+  } catch (err) {
+    return `Error: ${(err as Error).message}`;
+  }
 
   return `Appended to ${file.path}${args.heading ? ` under heading "${args.heading}"` : ""}.\n\n${readNote(engine, { path: file.path })}`;
 }

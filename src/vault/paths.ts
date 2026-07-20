@@ -1,6 +1,6 @@
 import path from "node:path";
 
-export const DEFAULT_EXCLUDE_DIRS = [".obsidian", ".git", "node_modules", ".obsidian-everywhere"];
+export const DEFAULT_EXCLUDE_DIRS = [".obsidian", ".git", ".trash", "node_modules", ".obsidian-everywhere"];
 
 export function toPosixPath(p: string): string {
   return p.split(path.sep).join("/");
@@ -24,7 +24,7 @@ export function extOf(relPath: string): string {
 
 export function shouldExclude(relPath: string, excludeDirs: string[] = DEFAULT_EXCLUDE_DIRS): boolean {
   const segments = relPath.split("/");
-  return segments.some((seg) => excludeDirs.includes(seg));
+  return segments.some((seg) => excludeDirs.includes(seg) || seg.includes(".oe-tmp-"));
 }
 
 /**

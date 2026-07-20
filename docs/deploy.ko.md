@@ -2,7 +2,7 @@
 
 [English](deploy.md) | [한국어](deploy.ko.md)
 
-Obsidian Everywhere는 로컬, 사설 원격, 공개 MCP 클라이언트를 위한 세 가지 배포 방식을 제공합니다. 여러 transport가 같은 vault를 동시에 사용할 수 있지만 각 프로세스에 서로 다른 `OBSIDIAN_EVERYWHERE_DB` 경로를 지정하는 것이 안전합니다. 쓰기 도구는 Markdown 파일을 실제로 변경하므로 같은 노트에 대한 동시 쓰기와 vault 동기화 충돌에 주의하세요.
+Obsidian Everywhere는 로컬, 사설 원격, 공개 MCP 클라이언트를 위한 세 가지 배포 방식을 제공합니다. 기본 SQLite 파일은 transport별로 분리됩니다. `OBSIDIAN_EVERYWHERE_DB`를 override할 때도 프로세스마다 서로 다른 경로를 사용하세요. 쓰기 도구는 Markdown 파일을 실제로 변경하므로 같은 노트에 대한 동시 쓰기와 vault 동기화 충돌에 주의하세요.
 
 | 클라이언트 | Transport | 인증 | 실행 위치 |
 |---|---|---|---|

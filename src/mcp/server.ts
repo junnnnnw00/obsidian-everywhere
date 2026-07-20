@@ -3,6 +3,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { VERSION } from "../version.js";
 import type { VaultEngine } from "../vault-engine.js";
+import * as bases from "./base-tools.js";
+import * as mutations from "./mutation-tools.js";
+import * as obsidianConfig from "./obsidian-config-tools.js";
 import * as tools from "./tools.js";
 
 function textResult(text: string) {
@@ -13,10 +16,10 @@ const READ_ONLY = { readOnlyHint: true, openWorldHint: false };
 const WRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
 
 export const SERVER_INSTRUCTIONS =
-  "Use vault_overview to orient yourself in an unfamiliar vault. Prefer get_context_bundle for broad topic context and read_note for one specific note or heading. Use search_notes when a note is not known exactly. Treat note paths as vault-relative. Before calling create_note or append_to_note, confirm that the user intends to modify the vault; use read tools without confirmation.";
+  "Use vault_overview to orient yourself in an unfamiliar vault. Prefer get_context_bundle for broad topic context and read_note for one specific note or heading. Use list_folder/list_notes for file enumeration, search_notes for full-text search, and regex_search for patterns. Treat note paths as vault-relative. read_note returns structured fields and line pagination; follow pagination.nextOffset for long notes. bulk_replace defaults to dry-run and returns a rollback ID when applied. Before calling any write tool, confirm that the user intends to modify the vault; use read tools without confirmation.";
 
 export interface CreateServerOptions {
-  /** Register create_note/append_to_note. Defaults to true — set to false for a read-only deployment (e.g. a public connector you don't fully trust). */
+  /** Register all mutation/config write tools. Defaults to true — set to false for a read-only deployment. */
   enableWriteTools?: boolean;
 }
 
@@ -60,6 +63,51 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
   );
 
   server.registerTool(
+    "list_folder",
+    {
+      title: "List Folder",
+      description: "List the immediate child folders, Markdown notes, and attachments in one vault folder.",
+      inputSchema: { folder: z.string().optional().describe("Vault-relative folder. Omit for the vault root.") },
+      annotations: READ_ONLY,
+    },
+    async (args) => textResult(tools.listFolder(engine, args)),
+  );
+
+  server.registerTool(
+    "list_notes",
+    {
+      title: "List Notes",
+      description:
+        "List note paths explicitly, optionally scoped to a folder, with pagination. Use this instead of an empty full-text search when enumerating files.",
+      inputSchema: {
+        folder: z.string().optional().describe("Vault-relative folder. Omit for the vault root."),
+        recursive: z.boolean().optional().describe("Include nested folders (default true)."),
+        offset: z.number().int().nonnegative().optional().describe("Zero-based result offset."),
+        limit: z.number().int().positive().max(500).optional().describe("Max notes (default 100)."),
+      },
+      annotations: READ_ONLY,
+    },
+    async (args) => textResult(tools.listNotes(engine, args)),
+  );
+
+  server.registerTool(
+    "regex_search",
+    {
+      title: "Regex Search",
+      description:
+        "Search note bodies with a JavaScript regular expression and return matching file, line, and excerpt.",
+      inputSchema: {
+        pattern: z.string().min(1).max(500).describe("JavaScript regular expression pattern."),
+        folder: z.string().optional().describe("Optional vault-relative folder scope."),
+        flags: z.string().optional().describe("Any of i, m, s, u (default i)."),
+        limit: z.number().int().positive().max(500).optional().describe("Max matching lines (default 50)."),
+      },
+      annotations: READ_ONLY,
+    },
+    async (args) => textResult(tools.regexSearch(engine, args)),
+  );
+
+  server.registerTool(
     "read_note",
     {
       title: "Read Note",
@@ -68,10 +116,57 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
       inputSchema: {
         path: z.string().describe("Note path, title, or alias."),
         heading: z.string().optional().describe("Only return the section under this heading."),
+        offset: z
+          .number()
+          .int()
+          .nonnegative()
+          .optional()
+          .describe("Zero-based line offset within the selected content."),
+        limit: z.number().int().positive().max(5000).optional().describe("Maximum lines to return (default 500)."),
+      },
+      outputSchema: {
+        path: z.string(),
+        title: z.string().nullable(),
+        content: z.string(),
+        frontmatter: z.record(z.string(), z.unknown()),
+        outlinks: z.array(
+          z.object({
+            target: z.string(),
+            resolvedPath: z.string().nullable(),
+            type: z.string(),
+            line: z.number().nullable(),
+          }),
+        ),
+        backlinks: z.array(
+          z.object({
+            sourcePath: z.string(),
+            type: z.string(),
+            line: z.number().nullable(),
+            context: z.string().nullable(),
+          }),
+        ),
+        tags: z.array(z.string()),
+        pagination: z.object({
+          offset: z.number(),
+          limit: z.number(),
+          returnedLines: z.number(),
+          totalLines: z.number(),
+          hasMore: z.boolean(),
+          nextOffset: z.number().nullable(),
+        }),
+        heading: z.string().optional(),
+        warning: z.string().optional(),
       },
       annotations: READ_ONLY,
     },
-    async (args) => textResult(tools.readNote(engine, args)),
+    async (args) => {
+      const data = tools.readNoteData(engine, args);
+      if ("error" in data) return textResult(data.error);
+      return {
+        content: [{ type: "text" as const, text: tools.readNote(engine, args) }],
+        structuredContent: { ...data },
+      };
+    },
   );
 
   server.registerTool(
@@ -196,6 +291,44 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
     async () => textResult(tools.findUnresolved(engine)),
   );
 
+  server.registerTool(
+    "get_hotkeys",
+    {
+      title: "Get Obsidian Hotkeys",
+      description:
+        "Read persisted Obsidian hotkey bindings and their actual command IDs from .obsidian/hotkeys.json. This includes configured commands, not the app's full runtime command registry.",
+      inputSchema: {},
+      annotations: READ_ONLY,
+    },
+    async () => textResult(obsidianConfig.getHotkeys(engine)),
+  );
+
+  server.registerTool(
+    "get_obsidian_settings",
+    {
+      title: "Get Obsidian Settings",
+      description: "Read the Templates folder and enabled/disabled core plugins from persisted vault settings.",
+      inputSchema: {},
+      annotations: READ_ONLY,
+    },
+    async () => textResult(obsidianConfig.getObsidianSettings(engine)),
+  );
+
+  server.registerTool(
+    "validate_base",
+    {
+      title: "Validate Obsidian Base",
+      description:
+        "Statically validate YAML and core structural fields in a .base file or fenced base block. Reports the limit that formula semantics and rendering require a live Obsidian app.",
+      inputSchema: {
+        path: z.string().optional().describe("Vault-relative .base or Markdown path."),
+        content: z.string().optional().describe("Base YAML or Markdown containing fenced base blocks; overrides path."),
+      },
+      annotations: READ_ONLY,
+    },
+    async (args) => textResult(bases.validateBase(engine, args)),
+  );
+
   if (enableWriteTools) {
     server.registerTool(
       "create_note",
@@ -236,6 +369,189 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         annotations: WRITE,
       },
       async (args) => textResult(tools.appendToNote(engine, args)),
+    );
+
+    server.registerTool(
+      "move_note",
+      {
+        title: "Move Note",
+        description:
+          "Move a note to a new vault-relative path and update every resolvable wikilink/Markdown link that pointed to it. Fails if the destination exists.",
+        inputSchema: {
+          from: z.string().describe("Existing note path, title, or alias."),
+          to: z.string().describe("New vault-relative path; .md is added automatically."),
+          updateLinks: z.boolean().optional().describe("Rewrite inbound links (default true)."),
+        },
+        annotations: WRITE,
+      },
+      async (args) => textResult(mutations.moveNote(engine, args)),
+    );
+
+    server.registerTool(
+      "rename_note",
+      {
+        title: "Rename Note",
+        description: "Rename a note within its current folder and update links that point to it.",
+        inputSchema: {
+          path: z.string().describe("Existing note path, title, or alias."),
+          newName: z.string().describe("New filename only; use move_note to change folders."),
+          updateLinks: z.boolean().optional().describe("Rewrite inbound links (default true)."),
+        },
+        annotations: WRITE,
+      },
+      async (args) => textResult(mutations.renameNote(engine, args)),
+    );
+
+    server.registerTool(
+      "delete_note",
+      {
+        title: "Delete Note",
+        description:
+          "Delete a note. By default it is moved to the vault's .trash folder and deletion is refused when backlinks exist. Permanent deletion and backlink override must be explicit.",
+        inputSchema: {
+          path: z.string().describe("Existing note path, title, or alias."),
+          force: z.boolean().optional().describe("Allow deletion when backlinks exist (default false)."),
+          permanent: z.boolean().optional().describe("Unlink permanently instead of moving to .trash (default false)."),
+        },
+        annotations: WRITE,
+      },
+      async (args) => textResult(mutations.deleteNote(engine, args)),
+    );
+
+    server.registerTool(
+      "replace_text",
+      {
+        title: "Replace Text",
+        description:
+          "Replace exact text in one note without overwriting the full note. Multiple matches require all: true or an exact expectedOccurrences guard.",
+        inputSchema: {
+          path: z.string().describe("Existing note path, title, or alias."),
+          find: z.string().min(1).describe("Exact text to find."),
+          replace: z.string().describe("Replacement text; may be empty."),
+          all: z.boolean().optional().describe("Replace every match (default false)."),
+          expectedOccurrences: z
+            .number()
+            .int()
+            .nonnegative()
+            .optional()
+            .describe("Abort unless this many matches exist."),
+        },
+        annotations: WRITE,
+      },
+      async (args) => textResult(mutations.replaceText(engine, args)),
+    );
+
+    server.registerTool(
+      "patch_section",
+      {
+        title: "Patch Section",
+        description: "Replace the content under one heading, preserving the heading and the rest of the note.",
+        inputSchema: {
+          path: z.string().describe("Existing note path, title, or alias."),
+          heading: z.string().min(1).describe("Heading text, without # markers."),
+          content: z.string().describe("New Markdown section content."),
+        },
+        annotations: WRITE,
+      },
+      async (args) => textResult(mutations.patchSection(engine, args)),
+    );
+
+    server.registerTool(
+      "update_frontmatter",
+      {
+        title: "Update Frontmatter",
+        description: "Merge one or more fields into a note's YAML frontmatter without replacing its body.",
+        inputSchema: {
+          path: z.string().describe("Existing note path, title, or alias."),
+          fields: z.record(z.string(), z.unknown()).describe("Fields to add or replace."),
+        },
+        annotations: WRITE,
+      },
+      async (args) => textResult(mutations.updateFrontmatter(engine, args)),
+    );
+
+    server.registerTool(
+      "remove_frontmatter_field",
+      {
+        title: "Remove Frontmatter Field",
+        description: "Remove exactly one YAML frontmatter field without replacing the note body.",
+        inputSchema: {
+          path: z.string().describe("Existing note path, title, or alias."),
+          field: z.string().min(1).describe("Top-level frontmatter field name."),
+        },
+        annotations: WRITE,
+      },
+      async (args) => textResult(mutations.removeFrontmatterField(engine, args)),
+    );
+
+    server.registerTool(
+      "bulk_replace",
+      {
+        title: "Bulk Replace",
+        description:
+          "Replace text across notes selected by folder, optionally using regex. Defaults to dry-run, reports every changed file, enforces maxFiles, and creates a rollback snapshot before applying.",
+        inputSchema: {
+          find: z.string().min(1).max(500).describe("Literal text or JavaScript regex pattern."),
+          replace: z.string().describe("Replacement text; regex capture references such as $1 are supported."),
+          folder: z.string().optional().describe("Optional vault-relative folder scope."),
+          regex: z.boolean().optional().describe("Treat find as a regular expression (default false)."),
+          caseSensitive: z.boolean().optional().describe("Regex case sensitivity (default true)."),
+          dryRun: z.boolean().optional().describe("Preview only (default true). Set false to apply."),
+          maxFiles: z
+            .number()
+            .int()
+            .positive()
+            .max(1000)
+            .optional()
+            .describe("Abort above this changed-file count (default 100)."),
+        },
+        annotations: WRITE,
+      },
+      async (args) => textResult(mutations.bulkReplace(engine, args)),
+    );
+
+    server.registerTool(
+      "rollback_bulk_edit",
+      {
+        title: "Rollback Bulk Edit",
+        description: "Restore every file from a rollback snapshot created by bulk_replace.",
+        inputSchema: { rollbackId: z.string().describe("Rollback ID returned by bulk_replace.") },
+        annotations: WRITE,
+      },
+      async (args) => textResult(mutations.rollbackBulkEdit(engine, args)),
+    );
+
+    server.registerTool(
+      "set_hotkey",
+      {
+        title: "Set Obsidian Hotkey",
+        description:
+          "Set persisted hotkey bindings for an exact Obsidian command ID. The app may need a vault reload; command IDs cannot be runtime-validated by the standalone server.",
+        inputSchema: {
+          commandId: z.string().min(1).describe("Exact command ID, e.g. insert-template."),
+          hotkeys: z
+            .array(
+              z.object({
+                modifiers: z.array(z.enum(["Mod", "Ctrl", "Meta", "Shift", "Alt"])),
+                key: z.string().min(1),
+              }),
+            )
+            .describe("Bindings; pass an empty array to clear this command's custom hotkeys."),
+        },
+        annotations: WRITE,
+      },
+      async (args) => textResult(obsidianConfig.setHotkey(engine, args)),
+    );
+
+    server.registerTool(
+      "set_templates_folder",
+      {
+        title: "Set Templates Folder",
+        description: "Set the persisted folder used by Obsidian's Templates core plugin.",
+        inputSchema: { folder: z.string().min(1).describe("Vault-relative Templates folder path.") },
+        annotations: WRITE,
+      },
+      async (args) => textResult(obsidianConfig.setTemplatesFolder(engine, args)),
     );
   }
 

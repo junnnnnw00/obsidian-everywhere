@@ -37,26 +37,57 @@ describe("MCP stdio-layer tool server", () => {
     await engine.close();
   });
 
-  it("lists all 14 tools (12 read-only + 2 write, enabled by default)", async () => {
+  it("lists all read and write tools (enabled by default)", async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
       "append_to_note",
+      "bulk_replace",
       "create_note",
+      "delete_note",
       "find_orphans",
       "find_path",
       "find_unresolved",
       "get_backlinks",
       "get_context_bundle",
+      "get_hotkeys",
       "get_neighborhood",
       "get_notes_by_tag",
+      "get_obsidian_settings",
       "get_related",
+      "list_folder",
+      "list_notes",
       "list_tags",
+      "move_note",
+      "patch_section",
       "read_note",
+      "regex_search",
+      "remove_frontmatter_field",
+      "rename_note",
+      "replace_text",
+      "rollback_bulk_edit",
       "search_notes",
+      "set_hotkey",
+      "set_templates_folder",
+      "update_frontmatter",
+      "validate_base",
       "vault_overview",
     ]);
-    const writeToolNames = new Set(["create_note", "append_to_note"]);
+    const writeToolNames = new Set([
+      "append_to_note",
+      "bulk_replace",
+      "create_note",
+      "delete_note",
+      "move_note",
+      "patch_section",
+      "remove_frontmatter_field",
+      "rename_note",
+      "replace_text",
+      "rollback_bulk_edit",
+      "set_hotkey",
+      "set_templates_folder",
+      "update_frontmatter",
+    ]);
     for (const t of tools) {
       if (writeToolNames.has(t.name)) {
         expect(t.annotations?.readOnlyHint).toBe(false);
@@ -86,11 +117,39 @@ describe("MCP stdio-layer tool server", () => {
     expect(text).toMatch(/links: \d+ out \/ \d+ in/);
   });
 
+  it("lists notes explicitly and supports regex search", async () => {
+    const folder = textOf((await client.callTool({ name: "list_folder", arguments: { folder: "Folder1" } })) as any);
+    expect(folder).toContain("Folder1/Same Name.md (note)");
+    const listed = textOf(
+      (await client.callTool({ name: "list_notes", arguments: { folder: "Folder1", recursive: false } })) as any,
+    );
+    expect(listed).toContain("Folder1/Same Name.md");
+    const regex = textOf(
+      (await client.callTool({ name: "regex_search", arguments: { pattern: "한글.*노트", flags: "i" } })) as any,
+    );
+    expect(regex).toContain("한글");
+  });
+
   it("read_note returns graph context header and body, and supports heading-scoped reads", async () => {
-    const full = textOf((await client.callTool({ name: "read_note", arguments: { path: "Note B" } })) as any);
+    const fullResult = (await client.callTool({ name: "read_note", arguments: { path: "Note B" } })) as any;
+    const full = textOf(fullResult);
     expect(full).toContain("Graph Context");
     expect(full).toContain("Some Heading");
     expect(full).toContain("Another Heading");
+    expect(fullResult.structuredContent).toMatchObject({
+      path: "Note B.md",
+      frontmatter: expect.any(Object),
+      outlinks: expect.any(Array),
+      backlinks: expect.any(Array),
+      tags: expect.any(Array),
+      pagination: { hasMore: false },
+    });
+
+    const page = (await client.callTool({
+      name: "read_note",
+      arguments: { path: "Note B", offset: 0, limit: 1 },
+    })) as any;
+    expect(page.structuredContent.pagination).toMatchObject({ returnedLines: 1, hasMore: true, nextOffset: 1 });
 
     const scoped = textOf(
       (await client.callTool({ name: "read_note", arguments: { path: "Note B", heading: "Some Heading" } })) as any,
@@ -199,5 +258,16 @@ describe("MCP stdio-layer tool server", () => {
     const text = textOf((await client.callTool({ name: "find_unresolved", arguments: {} })) as any);
     expect(text).toContain("Does Not Exist");
     expect(text).toContain("Unresolved Link Test.md");
+  });
+
+  it("statically validates Base YAML and reports live-rendering limits", async () => {
+    const text = textOf(
+      (await client.callTool({
+        name: "validate_base",
+        arguments: { content: "views:\n  - type: table\n    name: Test" },
+      })) as any,
+    );
+    expect(text).toContain('"valid": true');
+    expect(text).toContain("live Obsidian app");
   });
 });

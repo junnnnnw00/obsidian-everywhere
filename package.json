@@ -1,6 +1,6 @@
 {
   "name": "obsidian-everywhere",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server that exposes an Obsidian vault's knowledge graph to Codex, ChatGPT, Claude, and other MCP clients.",
   "license": "MIT",
   "type": "module",
