@@ -1,6 +1,6 @@
 {
   "name": "obsidian-everywhere",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Graph-native MCP server for searching, navigating, and safely editing Obsidian vaults from any MCP client.",
   "mcpName": "io.github.junnnnnw00/obsidian-everywhere",
   "license": "MIT",
@@ -32,7 +32,7 @@
     "obsidian-everywhere-oauth-http": "dist/oauth-http-cli.js"
   },
   "engines": {
-    "node": ">=18.17"
+    "node": "20.x || 22.x || 23.x || 24.x || 25.x || 26.x"
   },
   "files": [
     "dist"
@@ -56,7 +56,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "better-sqlite3": "^11.9.1",
+    "better-sqlite3": "^12.11.1",
     "chokidar": "^4.0.3",
     "express": "^4.21.2",
     "graphology": "^0.26.0",

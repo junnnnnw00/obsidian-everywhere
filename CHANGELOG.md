@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project doesn't yet follow strict semver pre-1.0.
 
+## [0.2.2] — 2026-07-20
+
+### Fixed
+
+- Upgraded `better-sqlite3` to 12.11.1 so fresh `npx` installs work across supported Node.js 20–26 releases.
+
 ## [0.2.1] — 2026-07-20
 
 ### Added
@@ -77,3 +83,4 @@ Initial release. A graph-native MCP server for Obsidian vaults.
 [0.1.0]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.1.0
 [0.2.0]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.2.0
 [0.2.1]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.2.1
+[0.2.2]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.2.2
