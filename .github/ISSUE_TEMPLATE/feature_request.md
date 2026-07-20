@@ -5,8 +5,8 @@ title: ""
 labels: enhancement
 ---
 
-**What problem does this solve?** (What are you trying to do with Claude
-+ your vault that isn't possible today?)
+**What problem does this solve?** (What are you trying to do with an AI
+client + your vault that isn't possible today?)
 
 **Proposed approach**, if you have one in mind (new MCP tool? parser
 change? new transport/deployment option?):

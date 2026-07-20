@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/junnnnnw00/obsidian-everywhere/discussions
+    about: Ask for help or share an idea with the community.
+  - name: Security report
+    url: https://github.com/junnnnnw00/obsidian-everywhere/security/advisories/new
+    about: Report a vulnerability privately instead of opening a public issue.

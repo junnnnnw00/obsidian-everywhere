@@ -11,11 +11,15 @@
 [![Node.js](https://img.shields.io/badge/node-%E2%89%A518.17-339933?logo=node.js&logoColor=white)](package.json)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](tsconfig.json)
 [![MCP](https://img.shields.io/badge/MCP-server-6b4fbb)](https://modelcontextprotocol.io)
+[![npm](https://img.shields.io/npm/v/obsidian-everywhere?logo=npm)](https://www.npmjs.com/package/obsidian-everywhere)
+[![npm downloads](https://img.shields.io/npm/dm/obsidian-everywhere)](https://www.npmjs.com/package/obsidian-everywhere)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 *Codex CLI · ChatGPT Desktop (Codex) · Claude Code/Desktop · remote clients — one server, every surface.*
 
 </div>
+
+![Obsidian Everywhere — your vault as a graph in every MCP client](assets/social-preview.png)
 
 ---
 
@@ -134,14 +138,15 @@ processes that all index the same vault.
 
 ## Quickstart
 
-Run this **on the vault machine** (wherever your `.md` files live):
+The fastest install needs no clone or build step. Run this **on the vault
+machine** (wherever your `.md` files live):
 
 ```bash
-git clone https://github.com/junnnnnw00/obsidian-everywhere.git
-cd obsidian-everywhere
-npm install
-npm run build
+npx -y obsidian-everywhere /absolute/path/to/your/vault
 ```
+
+MCP clients normally launch this command for you using one of the
+configurations below.
 
 ### Option A — Codex CLI and ChatGPT Desktop, same machine as the vault (stdio)
 
@@ -150,7 +155,7 @@ share the same MCP configuration ([official MCP documentation](https://learn.cha
 Add the server once:
 
 ```bash
-codex mcp add obsidian-everywhere -- node "$(pwd)/dist/cli.js" /absolute/path/to/your/vault
+codex mcp add obsidian-everywhere -- npx -y obsidian-everywhere /absolute/path/to/your/vault
 codex mcp list
 ```
 
@@ -164,27 +169,27 @@ For a project-scoped configuration instead, add this to a trusted project's
 
 ```toml
 [mcp_servers.obsidian-everywhere]
-command = "node"
-args = ["/absolute/path/to/obsidian-everywhere/dist/cli.js", "/absolute/path/to/your/vault"]
+command = "npx"
+args = ["-y", "obsidian-everywhere", "/absolute/path/to/your/vault"]
 startup_timeout_sec = 30
 ```
 
-Use absolute paths. GUI apps often do not inherit the same `PATH` as your
-terminal; if `node` is not found, replace `command` with the result of
-`command -v node`.
+Use an absolute vault path. GUI apps may not inherit the same `PATH` as your
+terminal; if `npx` is not found, replace `command` with the absolute result
+of `command -v npx`.
 
 ### Option A′ — Claude Code, same machine as the vault (stdio)
 
 Still on the vault machine:
 
 ```bash
-claude mcp add obsidian-everywhere -- node "$(pwd)/dist/cli.js" /path/to/your/vault
+claude mcp add obsidian-everywhere -- npx -y obsidian-everywhere /path/to/your/vault
 ```
 
 Or with environment variables instead of a positional arg:
 
 ```bash
-OBSIDIAN_VAULT_PATH=/path/to/your/vault claude mcp add obsidian-everywhere -- node "$(pwd)/dist/cli.js"
+OBSIDIAN_VAULT_PATH=/path/to/your/vault claude mcp add obsidian-everywhere -- npx -y obsidian-everywhere
 ```
 
 ### Option A″ — Claude Desktop, same machine as the vault
@@ -195,8 +200,8 @@ Add to `claude_desktop_config.json` on the vault machine:
 {
   "mcpServers": {
     "obsidian-everywhere": {
-      "command": "node",
-      "args": ["/absolute/path/to/obsidian-everywhere/dist/cli.js", "/absolute/path/to/your/vault"]
+      "command": "npx",
+      "args": ["-y", "obsidian-everywhere", "/absolute/path/to/your/vault"]
     }
   }
 }
@@ -210,8 +215,8 @@ Add to your global Antigravity MCP configuration file (`~/.gemini/config/mcp_con
 {
   "mcpServers": {
     "obsidian-everywhere": {
-      "command": "node",
-      "args": ["/absolute/path/to/obsidian-everywhere/dist/cli.js", "/absolute/path/to/your/vault"]
+      "command": "npx",
+      "args": ["-y", "obsidian-everywhere", "/absolute/path/to/your/vault"]
     }
   }
 }
@@ -236,7 +241,7 @@ Note the vault machine's Tailscale hostname/IP from `tailscale status`
 
 ```bash
 OBSIDIAN_VAULT_PATH=/path/to/vault OBSIDIAN_EVERYWHERE_TOKEN=$(openssl rand -hex 32) \
-  node dist/http-cli.js
+  npx -y --package obsidian-everywhere obsidian-everywhere-http
 ```
 
 Keep this token — you'll need it in step 3. (To keep this running

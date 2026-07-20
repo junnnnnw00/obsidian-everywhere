@@ -1,7 +1,8 @@
 {
   "name": "obsidian-everywhere",
-  "version": "0.2.0",
-  "description": "MCP server that exposes an Obsidian vault's knowledge graph to Codex, ChatGPT, Claude, and other MCP clients.",
+  "version": "0.2.1",
+  "description": "Graph-native MCP server for searching, navigating, and safely editing Obsidian vaults from any MCP client.",
+  "mcpName": "io.github.junnnnnw00/obsidian-everywhere",
   "license": "MIT",
   "type": "module",
   "author": "junnnnnw00",
@@ -21,7 +22,9 @@
     "codex",
     "chatgpt",
     "knowledge-graph",
-    "pkm"
+    "pkm",
+    "obsidian-mcp",
+    "mcp-server"
   ],
   "bin": {
     "obsidian-everywhere": "./dist/cli.js",
@@ -35,7 +38,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
     "dev:stdio": "tsx src/cli.ts",
     "dev:http": "tsx src/http-cli.ts",
     "dev:oauth-http": "tsx src/oauth-http-cli.ts",
@@ -44,7 +48,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "prepack": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

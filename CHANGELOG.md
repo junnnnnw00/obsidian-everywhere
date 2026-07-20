@@ -4,6 +4,18 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project doesn't yet follow strict semver pre-1.0.
 
+## [0.2.1] — 2026-07-20
+
+### Added
+
+- npm and official MCP Registry package metadata for one-command installation and ecosystem discovery.
+- Project icon, GitHub social preview artwork, and reproducible macOS render scripts.
+- Release/discovery automation and contributor-friendly starter tasks.
+
+### Changed
+
+- Repository and package metadata now describe Codex, ChatGPT, Claude, and generic MCP client support consistently.
+
 ## [0.2.0] — 2026-07-20
 
 ### Added
@@ -64,3 +76,4 @@ Initial release. A graph-native MCP server for Obsidian vaults.
 
 [0.1.0]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.1.0
 [0.2.0]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.2.0
+[0.2.1]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.2.1

@@ -36,9 +36,7 @@ synchronization. See "Vault sync" below for what it does handle.
 ## 1. Local stdio (Codex / ChatGPT Desktop / Claude on the same machine)
 
 ```bash
-npm install
-npm run build
-codex mcp add obsidian-everywhere -- node "$(pwd)/dist/cli.js" /path/to/your/vault
+codex mcp add obsidian-everywhere -- npx -y obsidian-everywhere /path/to/your/vault
 ```
 
 Codex CLI, its IDE extension, and ChatGPT Desktop share `~/.codex/config.toml`.
@@ -46,7 +44,7 @@ Restart ChatGPT Desktop after adding the server. Claude Code can register the
 same stdio command separately:
 
 ```bash
-claude mcp add obsidian-everywhere -- node "$(pwd)/dist/cli.js" /path/to/your/vault
+claude mcp add obsidian-everywhere -- npx -y obsidian-everywhere /path/to/your/vault
 ```
 
 See the README for manual `config.toml` and Claude Desktop JSON examples.
@@ -114,7 +112,7 @@ cp .env.example .env   # fill in OBSIDIAN_VAULT_HOST_PATH, OAUTH_ISSUER_URL, OAU
 docker compose up -d obsidian-everywhere-oauth
 ```
 
-(Or run it directly: `OBSIDIAN_VAULT_PATH=... OAUTH_ISSUER_URL=https://your-domain OAUTH_LOGIN_SECRET=... node dist/oauth-http-cli.js`.)
+(Or run it directly: `OBSIDIAN_VAULT_PATH=... OAUTH_ISSUER_URL=https://your-domain OAUTH_LOGIN_SECRET=... npx -y --package obsidian-everywhere obsidian-everywhere-oauth-http`.)
 
 `OAUTH_ISSUER_URL` must be the exact public HTTPS origin you're about to
 point the tunnel at (step 3b) — the OAuth discovery documents and the
