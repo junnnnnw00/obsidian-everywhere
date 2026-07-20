@@ -52,6 +52,7 @@
     "lint": "eslint src",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "product-hunt:prepare": "node scripts/prepare-product-hunt.mjs",
     "prepack": "npm run build"
   },
   "publishConfig": {

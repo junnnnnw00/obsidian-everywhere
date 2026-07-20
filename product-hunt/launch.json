@@ -1,0 +1,11 @@
+{
+  "name": "Obsidian Everywhere",
+  "url": "https://github.com/junnnnnw00/obsidian-everywhere",
+  "tagline": "Let AI navigate your Obsidian vault as a graph",
+  "description": "Obsidian Everywhere is a local-first MCP server that gives Codex, ChatGPT, Claude, and other MCP clients structured access to your vault. Build token-budgeted context, trace graph paths, discover related notes, find broken links, move notes with automatic link updates, and preview bulk edits with snapshots and rollback—without opening Obsidian.",
+  "topics": ["Productivity", "Developer Tools", "Artificial Intelligence"],
+  "pricing": "Free",
+  "status": "Available",
+  "firstComment": "Hey Product Hunt — I built Obsidian Everywhere because most AI integrations treated my vault like a folder of Markdown files, not the linked knowledge graph it is.\n\nIt is a local-first MCP server for Codex, ChatGPT, Claude, and any MCP client. The part I care about most is safe, graph-aware work:\n\n- assemble a token-budgeted context bundle\n- discover related notes and shortest paths\n- find broken links\n- move or rename notes while updating inbound links\n- preview bulk edits, snapshot them, and roll them back\n\nThere is no account, API key, hosted vault, or telemetry. You can try it without touching your notes:\n\n`npx -y obsidian-everywhere demo`\n\nI would especially value feedback on the setup flow and which graph operations should come next.",
+  "launchDate": null
+}
