@@ -32,7 +32,14 @@ jobs:
           npm run build
 
       - name: Publish npm package with provenance
-        run: npm publish --access public --provenance
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "npm ${PACKAGE_NAME}@${PACKAGE_VERSION} is already published; skipping."
+          else
+            npm publish --access public --provenance
+          fi
 
       - name: Install MCP Registry publisher
         run: |
@@ -43,5 +50,11 @@ jobs:
 
       - name: Publish official MCP Registry entry
         run: |
-          ./mcp-publisher login github-oidc
-          ./mcp-publisher publish server.json
+          SERVER_PATH=$(node -p "encodeURIComponent(require('./server.json').name)")
+          SERVER_VERSION=$(node -p "require('./server.json').version")
+          if curl -fsS "https://registry.modelcontextprotocol.io/v0/servers/${SERVER_PATH}/versions/${SERVER_VERSION}" >/dev/null; then
+            echo "MCP Registry version ${SERVER_VERSION} is already published; skipping."
+          else
+            ./mcp-publisher login github-oidc
+            ./mcp-publisher publish server.json
+          fi
