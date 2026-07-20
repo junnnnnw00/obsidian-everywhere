@@ -27,9 +27,9 @@
     "mcp-server"
   ],
   "bin": {
-    "obsidian-everywhere": "./dist/cli.js",
-    "obsidian-everywhere-http": "./dist/http-cli.js",
-    "obsidian-everywhere-oauth-http": "./dist/oauth-http-cli.js"
+    "obsidian-everywhere": "dist/cli.js",
+    "obsidian-everywhere-http": "dist/http-cli.js",
+    "obsidian-everywhere-oauth-http": "dist/oauth-http-cli.js"
   },
   "engines": {
     "node": ">=18.17"
