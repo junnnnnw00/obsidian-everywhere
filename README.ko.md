@@ -10,7 +10,7 @@
 
 </div>
 
-![Obsidian Everywhere — 모든 MCP 클라이언트에서 vault를 그래프로 활용](assets/social-preview.png)
+![Obsidian Everywhere — 모든 MCP 클라이언트에서 vault를 그래프로 활용](assets/social-preview.jpg)
 
 ---
 

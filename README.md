@@ -19,7 +19,7 @@
 
 </div>
 
-![Obsidian Everywhere — your vault as a graph in every MCP client](assets/social-preview.png)
+![Obsidian Everywhere — your vault as a graph in every MCP client](assets/social-preview.jpg)
 
 ---
 
