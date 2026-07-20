@@ -12,7 +12,6 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](tsconfig.json)
 [![MCP](https://img.shields.io/badge/MCP-server-6b4fbb)](https://modelcontextprotocol.io)
 [![npm](https://img.shields.io/npm/v/obsidian-everywhere?logo=npm)](https://www.npmjs.com/package/obsidian-everywhere)
-[![npm downloads](https://img.shields.io/npm/dm/obsidian-everywhere)](https://www.npmjs.com/package/obsidian-everywhere)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 *Codex CLI · ChatGPT Desktop (Codex) · Claude Code/Desktop · remote clients — one server, every surface.*
@@ -35,6 +34,8 @@ text.
 ## Contents
 
 - [Features](#features)
+- [Try it without your vault](#try-it-without-your-vault)
+- [Why Obsidian Everywhere?](#why-obsidian-everywhere)
 - [Where does this actually run?](#where-does-this-actually-run)
 - [Quickstart](#quickstart)
 - [Configuration](#configuration)
@@ -113,6 +114,57 @@ connector transport (opt in with `OAUTH_ENABLE_WRITE_TOOLS=true`) — see
 
 </details>
 
+## Try it without your vault
+
+Run the built-in demo first. It creates a temporary sample vault, shows graph
+orientation and unresolved-link discovery, previews a safe bulk edit, and then
+removes the sample. It never reads or changes your own notes.
+
+```bash
+npx -y obsidian-everywhere demo
+```
+
+![Obsidian Everywhere demo: context bundles, related-note discovery, graph paths, unresolved links, link-safe moves, and rollback-ready bulk edits](assets/demo.gif)
+
+When you are ready to connect a real vault, generate copyable configuration for
+Codex, ChatGPT Desktop, Claude Code, and Claude Desktop:
+
+```bash
+npx -y obsidian-everywhere init /absolute/path/to/your/vault
+npx -y obsidian-everywhere doctor /absolute/path/to/your/vault
+```
+
+`init` only prints configuration—it never edits global client settings.
+`doctor` checks Node.js, permissions, Obsidian metadata, SQLite, parsing, and the
+graph engine without printing note content. Add `--share` to redact the vault
+path before pasting diagnostics into an issue.
+
+## Why Obsidian Everywhere?
+
+There are several good Obsidian MCPs. Pick the architecture that matches how
+you work rather than assuming one server wins every category.
+
+| | **Obsidian Everywhere** | [obsidian-mcp-server](https://github.com/cyanheads/obsidian-mcp-server) | [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) | [TurboVault](https://github.com/epistates/turbovault) |
+|---|---|---|---|---|
+| Install | `npx` | `npx` | Obsidian community plugin | `cargo install` / binary |
+| Published tools | **31** | 14 | 16 | 74 |
+| Obsidian must be open | **No** | Yes | Yes | **No** |
+| Best graph capability | PageRank, shortest path, n-hop, unresolved links | Outgoing links in structured reads | Live Obsidian metadata/search | Multi-hop, centrality, clusters, suggestions |
+| Safe editing | Partial edits; bulk dry-run, snapshot, rollback | Surgical edits and frontmatter/tag management | Live heading/block/frontmatter patching | Conflict hashes, audit rollback, Git-backed batch |
+| Live app commands/current file | Persisted settings only | **Yes** | **Yes** | No |
+| Remote transport | stdio, bearer HTTP, **OAuth 2.1** | stdio, HTTP with JWT/OAuth | HTTP with API key | stdio, HTTP, WebSocket, TCP |
+| Best fit | Fast `npx`, focused LLM context, graph navigation, safe vault cleanup | Rich app-driven CRUD and Omnisearch | Direct control of a running Obsidian app | Maximum breadth, multi-vault and advanced analysis |
+
+Comparison checked against each project's published documentation on
+2026-07-20. A blank or narrower cell means “not documented there,” not that a
+project can never support it. If you need active-file state or command-palette
+execution, choose a plugin-backed server. If you want a headless, one-command
+graph server with token-budgeted context and guarded cleanup, that is the niche
+Obsidian Everywhere is designed for.
+
+Everything runs locally by default. There is no account, API key, hosted vault,
+or telemetry requirement.
+
 See [`docs/architecture.md`](docs/architecture.md) for how it's built and
 [`docs/deploy.md`](docs/deploy.md) for the full deployment topology
 (LaunchAgent, Docker, Cloudflare Tunnel).
@@ -147,6 +199,12 @@ npx -y obsidian-everywhere /absolute/path/to/your/vault
 
 MCP clients normally launch this command for you using one of the
 configurations below.
+
+Not sure whether the path and runtime are ready? Run the privacy-safe diagnostic:
+
+```bash
+npx -y obsidian-everywhere doctor /absolute/path/to/your/vault
+```
 
 ### Option A — Codex CLI and ChatGPT Desktop, same machine as the vault (stdio)
 

@@ -19,6 +19,8 @@
 ## 목차
 
 - [주요 기능](#주요-기능)
+- [내 vault 없이 체험하기](#내-vault-없이-체험하기)
+- [왜 Obsidian Everywhere인가요?](#왜-obsidian-everywhere인가요)
 - [서버는 어디에서 실행되나요?](#서버는-어디에서-실행되나요)
 - [빠른 시작](#빠른-시작)
 - [환경 변수](#환경-변수)
@@ -80,6 +82,54 @@ stdio와 bearer-token HTTP에서는 쓰기 도구가 기본 활성화됩니다. 
 
 자세한 내부 구조는 [아키텍처 문서](docs/architecture.md), 운영 구성은 [한국어 배포 가이드](docs/deploy.ko.md)를 참고하세요.
 
+## 내 vault 없이 체험하기
+
+먼저 내장 데모를 실행해 보세요. 임시 샘플 vault를 만들고 그래프 개요,
+미해결 링크 탐색, 안전한 일괄 편집 dry-run을 보여준 뒤 샘플을 삭제합니다.
+사용자의 실제 노트는 읽거나 변경하지 않습니다.
+
+```bash
+npx -y obsidian-everywhere demo
+```
+
+![Obsidian Everywhere 데모: 컨텍스트 번들, 관련 노트 추천, 그래프 경로, 미해결 링크, 링크 보존 이동, 롤백 가능한 일괄 편집](assets/demo.gif)
+
+실제 vault를 연결할 준비가 되면 클라이언트 설정과 진단 결과를 생성합니다.
+
+```bash
+npx -y obsidian-everywhere init /절대/경로/내/vault
+npx -y obsidian-everywhere doctor /절대/경로/내/vault
+```
+
+`init`은 Codex, ChatGPT Desktop, Claude Code, Claude Desktop용 설정을 출력할
+뿐 전역 설정 파일을 수정하지 않습니다. `doctor`는 노트 내용을 출력하지
+않고 Node.js, 권한, Obsidian 설정, SQLite, 파서와 그래프 엔진을 검사합니다.
+이슈에 결과를 붙일 때 `--share`를 추가하면 vault 경로도 가려집니다.
+
+## 왜 Obsidian Everywhere인가요?
+
+좋은 Obsidian MCP가 이미 여러 개 있습니다. 하나가 모든 면에서 우월하다고
+주장하기보다 자신의 사용 방식에 맞는 구조를 선택하는 편이 정확합니다.
+
+| | **Obsidian Everywhere** | [obsidian-mcp-server](https://github.com/cyanheads/obsidian-mcp-server) | [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) | [TurboVault](https://github.com/epistates/turbovault) |
+|---|---|---|---|---|
+| 설치 | `npx` | `npx` | Obsidian community plugin | `cargo install` / binary |
+| 공개된 도구 수 | **31** | 14 | 16 | 74 |
+| Obsidian 실행 필요 | **아니요** | 예 | 예 | **아니요** |
+| 대표 그래프 기능 | PageRank·최단 경로·n-hop·미해결 링크 | 구조화 읽기의 outgoing links | 실행 중인 Obsidian metadata/search | multi-hop·centrality·cluster·추천 |
+| 안전한 편집 | 부분 편집·bulk dry-run·snapshot·rollback | 정밀 편집·frontmatter/tag 관리 | live heading/block/frontmatter patch | conflict hash·audit rollback·Git batch |
+| 현재 파일·앱 명령 | 저장 설정만 조회 | **지원** | **지원** | 미지원 |
+| 원격 transport | stdio·bearer HTTP·**OAuth 2.1** | stdio·JWT/OAuth HTTP | API key HTTP | stdio·HTTP·WebSocket·TCP |
+| 특히 잘 맞는 경우 | 빠른 `npx`, LLM context, 그래프 탐색, 안전한 vault 정리 | 앱 기반 CRUD와 Omnisearch | 실행 중인 Obsidian 직접 제어 | 최대 기능 폭·multi-vault·고급 분석 |
+
+2026-07-20 각 프로젝트의 공개 문서를 기준으로 확인했습니다. 실행 중인 앱의
+현재 파일이나 command palette 제어가 중요하면 plugin 기반 서버가 더 적합합니다.
+앱 없이 `npx` 한 줄로 실행하고, token-budgeted context와 보호 장치가 있는
+그래프 정리를 원한다면 Obsidian Everywhere가 겨냥한 영역입니다.
+
+기본 동작은 완전한 로컬 실행입니다. 계정, API key, hosted vault, telemetry가
+필요하지 않습니다.
+
 ## 서버는 어디에서 실행되나요?
 
 `obsidian-everywhere` 프로세스는 vault의 `.md` 파일을 직접 읽고 변경을 감시해야 합니다. 따라서 **vault 파일이 실제로 존재하는 컴퓨터**에서 실행해야 합니다. 클라이언트가 다른 컴퓨터에 있더라도 서버 위치는 바뀌지 않고 연결 방식만 달라집니다.
@@ -101,6 +151,12 @@ npx -y obsidian-everywhere /절대/경로/내/vault
 ```
 
 실제로는 아래 설정을 통해 MCP 클라이언트가 이 명령을 자동 실행합니다.
+
+경로와 실행 환경을 먼저 확인하려면 노트 내용을 노출하지 않는 진단을 실행하세요.
+
+```bash
+npx -y obsidian-everywhere doctor /절대/경로/내/vault
+```
 
 ### Codex CLI 및 ChatGPT Desktop — 로컬 stdio
 

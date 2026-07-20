@@ -4,6 +4,20 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project doesn't yet follow strict semver pre-1.0.
 
+## [0.3.0] — 2026-07-20
+
+### Added
+
+- Self-contained `demo`, client configuration generator `init`, and privacy-safe vault/runtime diagnostics through `doctor` and `doctor --share`.
+- Interactive-graph terminal demo and a source-linked comparison with released Obsidian MCP alternatives.
+- CodeQL, OpenSSF Scorecard, Dependabot, and a private-artifact weekly growth report workflow.
+- A Show and Tell discussion template for community use cases and feedback.
+
+### Changed
+
+- All 31 MCP tools now declare explicit read-only, destructive, idempotent, and open-world annotations matched to their behavior.
+- README onboarding now starts with a sample-vault trial before asking users to connect private notes.
+
 ## [0.2.2] — 2026-07-20
 
 ### Fixed
@@ -84,3 +98,4 @@ Initial release. A graph-native MCP server for Obsidian vaults.
 [0.2.0]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.2.0
 [0.2.1]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.2.1
 [0.2.2]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.2.2
+[0.3.0]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.3.0

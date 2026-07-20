@@ -91,11 +91,17 @@ describe("MCP stdio-layer tool server", () => {
     for (const t of tools) {
       if (writeToolNames.has(t.name)) {
         expect(t.annotations?.readOnlyHint).toBe(false);
-        expect(t.annotations?.destructiveHint).toBe(true);
       } else {
         expect(t.annotations?.readOnlyHint).toBe(true);
+        expect(t.annotations?.destructiveHint).toBe(false);
+        expect(t.annotations?.idempotentHint).toBe(true);
       }
+      expect(t.annotations?.openWorldHint).toBe(false);
     }
+    expect(tools.find((tool) => tool.name === "append_to_note")?.annotations?.destructiveHint).toBe(false);
+    expect(tools.find((tool) => tool.name === "delete_note")?.annotations?.destructiveHint).toBe(true);
+    expect(tools.find((tool) => tool.name === "patch_section")?.annotations?.idempotentHint).toBe(true);
+    expect(tools.find((tool) => tool.name === "set_hotkey")?.annotations?.idempotentHint).toBe(true);
   });
 
   it("advertises server-wide tool guidance during MCP initialization", () => {

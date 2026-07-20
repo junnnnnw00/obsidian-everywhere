@@ -1,6 +1,6 @@
 {
   "name": "obsidian-everywhere",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Graph-native MCP server for searching, navigating, and safely editing Obsidian vaults from any MCP client.",
   "mcpName": "io.github.junnnnnw00/obsidian-everywhere",
   "license": "MIT",
@@ -35,7 +35,9 @@
     "node": "20.x || 22.x || 23.x || 24.x || 25.x || 26.x"
   },
   "files": [
-    "dist"
+    "dist",
+    "assets/social-preview.jpg",
+    "assets/demo.gif"
   ],
   "scripts": {
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\"",
@@ -43,6 +45,7 @@
     "dev:stdio": "tsx src/cli.ts",
     "dev:http": "tsx src/http-cli.ts",
     "dev:oauth-http": "tsx src/oauth-http-cli.ts",
+    "demo": "tsx src/cli.ts demo",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",

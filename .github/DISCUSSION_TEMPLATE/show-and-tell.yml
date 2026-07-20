@@ -1,0 +1,25 @@
+title: "[Show and tell] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Show the community what you built or cleaned up with Obsidian Everywhere. Never share private note content, tokens, or full vault paths.
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      placeholder: Codex, ChatGPT Desktop, Claude Code, Claude Desktop, other
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: What did you accomplish?
+      placeholder: I used find_unresolved and bulk_replace to...
+    validations:
+      required: true
+  - type: textarea
+    id: feedback
+    attributes:
+      label: What would make it better?

@@ -12,8 +12,32 @@ function textResult(text: string) {
   return { content: [{ type: "text" as const, text }] };
 }
 
-const READ_ONLY = { readOnlyHint: true, openWorldHint: false };
-const WRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
+// Explicit annotations help clients and registries distinguish safe exploration,
+// additive writes, destructive edits, and repeatable configuration operations.
+const READ_ONLY = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+const ADDITIVE_WRITE = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: false,
+};
+const DESTRUCTIVE_WRITE = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: false,
+};
+const IDEMPOTENT_WRITE = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: true,
+  openWorldHint: false,
+};
 
 export const SERVER_INSTRUCTIONS =
   "Use vault_overview to orient yourself in an unfamiliar vault. Prefer get_context_bundle for broad topic context and read_note for one specific note or heading. Use list_folder/list_notes for file enumeration, search_notes for full-text search, and regex_search for patterns. Treat note paths as vault-relative. read_note returns structured fields and line pagination; follow pagination.nextOffset for long notes. bulk_replace defaults to dry-run and returns a rollback ID when applied. Before calling any write tool, confirm that the user intends to modify the vault; use read tools without confirmation.";
@@ -347,7 +371,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
             .describe("Frontmatter fields (tags, aliases, or any custom field)."),
           overwrite: z.boolean().optional().describe("Replace the note if it already exists (default false)."),
         },
-        annotations: WRITE,
+        annotations: DESTRUCTIVE_WRITE,
       },
       async (args) => textResult(tools.createNote(engine, args)),
     );
@@ -366,7 +390,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
             .optional()
             .describe("Append at the end of this heading's section instead of the end of the file."),
         },
-        annotations: WRITE,
+        annotations: ADDITIVE_WRITE,
       },
       async (args) => textResult(tools.appendToNote(engine, args)),
     );
@@ -382,7 +406,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
           to: z.string().describe("New vault-relative path; .md is added automatically."),
           updateLinks: z.boolean().optional().describe("Rewrite inbound links (default true)."),
         },
-        annotations: WRITE,
+        annotations: DESTRUCTIVE_WRITE,
       },
       async (args) => textResult(mutations.moveNote(engine, args)),
     );
@@ -397,7 +421,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
           newName: z.string().describe("New filename only; use move_note to change folders."),
           updateLinks: z.boolean().optional().describe("Rewrite inbound links (default true)."),
         },
-        annotations: WRITE,
+        annotations: DESTRUCTIVE_WRITE,
       },
       async (args) => textResult(mutations.renameNote(engine, args)),
     );
@@ -413,7 +437,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
           force: z.boolean().optional().describe("Allow deletion when backlinks exist (default false)."),
           permanent: z.boolean().optional().describe("Unlink permanently instead of moving to .trash (default false)."),
         },
-        annotations: WRITE,
+        annotations: DESTRUCTIVE_WRITE,
       },
       async (args) => textResult(mutations.deleteNote(engine, args)),
     );
@@ -436,7 +460,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
             .optional()
             .describe("Abort unless this many matches exist."),
         },
-        annotations: WRITE,
+        annotations: DESTRUCTIVE_WRITE,
       },
       async (args) => textResult(mutations.replaceText(engine, args)),
     );
@@ -451,7 +475,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
           heading: z.string().min(1).describe("Heading text, without # markers."),
           content: z.string().describe("New Markdown section content."),
         },
-        annotations: WRITE,
+        annotations: IDEMPOTENT_WRITE,
       },
       async (args) => textResult(mutations.patchSection(engine, args)),
     );
@@ -465,7 +489,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
           path: z.string().describe("Existing note path, title, or alias."),
           fields: z.record(z.string(), z.unknown()).describe("Fields to add or replace."),
         },
-        annotations: WRITE,
+        annotations: IDEMPOTENT_WRITE,
       },
       async (args) => textResult(mutations.updateFrontmatter(engine, args)),
     );
@@ -479,7 +503,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
           path: z.string().describe("Existing note path, title, or alias."),
           field: z.string().min(1).describe("Top-level frontmatter field name."),
         },
-        annotations: WRITE,
+        annotations: IDEMPOTENT_WRITE,
       },
       async (args) => textResult(mutations.removeFrontmatterField(engine, args)),
     );
@@ -505,7 +529,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
             .optional()
             .describe("Abort above this changed-file count (default 100)."),
         },
-        annotations: WRITE,
+        annotations: DESTRUCTIVE_WRITE,
       },
       async (args) => textResult(mutations.bulkReplace(engine, args)),
     );
@@ -516,7 +540,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         title: "Rollback Bulk Edit",
         description: "Restore every file from a rollback snapshot created by bulk_replace.",
         inputSchema: { rollbackId: z.string().describe("Rollback ID returned by bulk_replace.") },
-        annotations: WRITE,
+        annotations: IDEMPOTENT_WRITE,
       },
       async (args) => textResult(mutations.rollbackBulkEdit(engine, args)),
     );
@@ -538,7 +562,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
             )
             .describe("Bindings; pass an empty array to clear this command's custom hotkeys."),
         },
-        annotations: WRITE,
+        annotations: IDEMPOTENT_WRITE,
       },
       async (args) => textResult(obsidianConfig.setHotkey(engine, args)),
     );
@@ -549,7 +573,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         title: "Set Templates Folder",
         description: "Set the persisted folder used by Obsidian's Templates core plugin.",
         inputSchema: { folder: z.string().min(1).describe("Vault-relative Templates folder path.") },
-        annotations: WRITE,
+        annotations: IDEMPOTENT_WRITE,
       },
       async (args) => textResult(obsidianConfig.setTemplatesFolder(engine, args)),
     );
