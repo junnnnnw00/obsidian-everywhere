@@ -1,8 +1,10 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { VaultDB } from "./db.js";
-import { fullScan } from "./scan.js";
+import { applyFileUpsert, fullScan } from "./scan.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const vaultDir = path.resolve(here, "..", "..", "fixtures", "test-vault");
@@ -118,5 +120,42 @@ describe("fullScan against fixture vault", () => {
   it("full text search finds notes by content", () => {
     const results = db.search("hub");
     expect(results.some((r) => r.path === "Hub Note.md")).toBe(true);
+  });
+});
+
+describe("Unicode normalization (NFC/NFD)", () => {
+  let tmpVault: string;
+
+  afterEach(() => {
+    if (tmpVault) rmSync(tmpVault, { recursive: true, force: true });
+  });
+
+  it("indexes an NFD-named file under its NFC path, matching what a JSON client would send", () => {
+    tmpVault = mkdtempSync(path.join(tmpdir(), "oe-nfd-"));
+    const nfcName = "테스트노트.md";
+    const nfdName = nfcName.normalize("NFD");
+    expect(nfdName).not.toBe(nfcName); // sanity: Korean jamo really do decompose differently
+    writeFileSync(path.join(tmpVault, nfdName), "Hello.");
+
+    const db = new VaultDB(":memory:");
+    fullScan(db, tmpVault);
+
+    expect(db.getFileByPath(nfcName)).toBeDefined();
+    expect(db.getFileByPath(nfdName)).toBeUndefined();
+    db.close();
+  });
+
+  it("applyFileUpsert also canonicalizes to NFC while still reading the exact on-disk bytes", () => {
+    tmpVault = mkdtempSync(path.join(tmpdir(), "oe-nfd-"));
+    const nfcName = "노트.md";
+    const nfdName = nfcName.normalize("NFD");
+    writeFileSync(path.join(tmpVault, nfdName), "content");
+
+    const db = new VaultDB(":memory:");
+    applyFileUpsert(db, tmpVault, nfdName);
+
+    expect(db.getFileByPath(nfcName)).toBeDefined();
+    expect(db.getFileByPath(nfcName)?.raw_content).toBe("content");
+    db.close();
   });
 });

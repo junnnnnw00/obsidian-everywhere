@@ -34,7 +34,10 @@ export function buildResolverIndex(files: ResolvableFile[]): ResolverIndex {
     push(byBasenameNoExt, basenameNoExt(file.path), file);
     push(byFullBasename, fullBasename(file.path), file);
     for (const alias of file.aliases) {
-      push(byAlias, alias, file);
+      // Frontmatter alias text carries whatever Unicode normalization form
+      // the note was written in; canonicalize so it matches a wikilink
+      // target normalized the same way in `normalizeTarget` below.
+      push(byAlias, alias.normalize("NFC"), file);
     }
   }
 
@@ -55,7 +58,10 @@ function normalizeTarget(targetRaw: string): string {
   let t = targetRaw.trim();
   if (t.startsWith("./")) t = t.slice(2);
   t = t.split("\\").join("/");
-  return t;
+  // Canonicalize to NFC to match `file.path`/alias keys in the index (see
+  // buildResolverIndex) regardless of which Unicode form this wikilink's
+  // raw text happens to be written in.
+  return t.normalize("NFC");
 }
 
 /**

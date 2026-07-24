@@ -37,3 +37,24 @@ describe("resolveLink", () => {
     expect(resolveLink("Does Not Exist", index)).toBeNull();
   });
 });
+
+describe("resolveLink Unicode normalization (NFC/NFD)", () => {
+  const nfcName = "테스트노트";
+  const nfdName = nfcName.normalize("NFD");
+  const nfcAlias = "별칭";
+  const nfdAlias = nfcAlias.normalize("NFD");
+
+  it("matches a basename target regardless of which Unicode form the wikilink text uses", () => {
+    // Indexed path is NFC (index/scan.ts canonicalizes it before it ever
+    // reaches the resolver), but the *link text* in a note's raw markdown
+    // could have been typed/pasted in NFD.
+    const index = buildResolverIndex([{ path: `${nfcName}.md`, isMarkdown: true, aliases: [] }]);
+    expect(resolveLink(nfdName, index)?.path).toBe(`${nfcName}.md`);
+    expect(resolveLink(nfcName, index)?.path).toBe(`${nfcName}.md`);
+  });
+
+  it("matches an alias regardless of which Unicode form either side uses", () => {
+    const index = buildResolverIndex([{ path: "Note.md", isMarkdown: true, aliases: [nfdAlias] }]);
+    expect(resolveLink(nfcAlias, index)?.path).toBe("Note.md");
+  });
+});

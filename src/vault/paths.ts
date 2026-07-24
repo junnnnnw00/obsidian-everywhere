@@ -59,7 +59,10 @@ export function toSafeVaultRelPath(requested: string): string {
     throw new Error("path must not contain '.' or '..' segments");
   }
 
-  const normalized = segments.join("/");
+  // NFC is the DB's canonical identity form (see index/scan.ts) — normalize
+  // write targets the same way so a note written via one Unicode form is
+  // found, not duplicated, by a later lookup using a different form.
+  const normalized = segments.join("/").normalize("NFC");
   if (shouldExclude(normalized)) {
     throw new Error("path is inside an excluded directory (e.g. .obsidian)");
   }

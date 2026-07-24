@@ -10,10 +10,15 @@ import { estimateTokens, extractSection, firstParagraph, formatFrontmatter, trun
 
 /** Resolve a user-supplied note reference (path, alias, or bare title) using the same semantics as in-vault links. */
 export function resolveNoteArg(engine: VaultEngine, input: string): FileRow | undefined {
-  const direct = engine.db.getFileByPath(input) ?? engine.db.getFileByPath(`${input}.md`);
+  // The DB stores Unicode-NFC-normalized paths regardless of how a file's
+  // name bytes ended up on disk (see index/scan.ts); normalize the caller's
+  // input the same way so e.g. a JSON client sending NFC-composed Korean
+  // text still matches a note whose filename was originally written as NFD.
+  const normalized = input.normalize("NFC");
+  const direct = engine.db.getFileByPath(normalized) ?? engine.db.getFileByPath(`${normalized}.md`);
   if (direct) return direct;
   const index = engine.db.buildResolverIndex();
-  const resolved = resolveLink(input, index);
+  const resolved = resolveLink(normalized, index);
   return resolved ? engine.db.getFileByPath(resolved.path) : undefined;
 }
 
@@ -636,7 +641,13 @@ export function createNote(engine: VaultEngine, args: CreateNoteArgs): string {
     return `Error: ${(err as Error).message}`;
   }
 
-  if (existsSync(absPath) && !args.overwrite) {
+  // Check the DB (Unicode-NFC-normalized identity, see index/scan.ts) in
+  // addition to a raw filesystem check: on a filesystem that doesn't unify
+  // NFC/NFD itself (some external exFAT/FAT32 drives), an existing note
+  // originally written in NFD could otherwise be invisible to existsSync()
+  // on the caller's NFC path, and get silently duplicated as a second,
+  // byte-different file instead of being reported as already existing.
+  if ((existsSync(absPath) || engine.db.getFileByPath(relPath)) && !args.overwrite) {
     return `Error: ${relPath} already exists. Pass overwrite: true to replace it, or use append_to_note to add to it.`;
   }
 

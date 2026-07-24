@@ -34,7 +34,14 @@ export function walkVaultFiles(vaultDir: string, excludeDirs: string[] = DEFAULT
         walk(abs);
       } else if (entry.isFile()) {
         const stat = statSync(abs);
-        results.push({ relPath: rel, absPath: abs, mtimeMs: stat.mtimeMs, size: stat.size });
+        // Canonicalize to NFC for the DB identity (`relPath`) while keeping
+        // `absPath` byte-exact for disk I/O below. A dumb filesystem (exFAT,
+        // FAT32 — the common case for an external drive) can store a
+        // filename however the writer originally composed it, often NFD for
+        // Korean/accented text; without this, the same note could be
+        // "not found" for a caller using the NFC form (the normal form for
+        // JSON payloads and most non-macOS text).
+        results.push({ relPath: rel.normalize("NFC"), absPath: abs, mtimeMs: stat.mtimeMs, size: stat.size });
       }
     }
   }
@@ -136,11 +143,16 @@ export function fullScan(db: VaultDB, vaultDir: string, excludeDirs: string[] = 
   return { addedFiles, updatedFiles, removedFiles, linkChanges };
 }
 
-/** Apply a single filesystem event (create/change) incrementally. */
+/**
+ * Apply a single filesystem event (create/change) incrementally. `relPath`
+ * is used byte-exact to build `absPath` (it must match whatever's really on
+ * disk), but the DB identity is its NFC form — see `walkVaultFiles`.
+ */
 export function applyFileUpsert(db: VaultDB, vaultDir: string, relPath: string): ScanResult {
   const absPath = path.join(vaultDir, relPath.split("/").join(path.sep));
   const stat = statSync(absPath);
-  const file: DiskFile = { relPath, absPath, mtimeMs: stat.mtimeMs, size: stat.size };
+  const canonicalRelPath = relPath.normalize("NFC");
+  const file: DiskFile = { relPath: canonicalRelPath, absPath, mtimeMs: stat.mtimeMs, size: stat.size };
 
   const result = upsertFileContent(db, file);
   const resolverIndex = db.buildResolverIndex();
@@ -150,8 +162,8 @@ export function applyFileUpsert(db: VaultDB, vaultDir: string, relPath: string):
   const linkChanges = db.reresolveAllLinks(resolverIndex);
 
   return {
-    addedFiles: result.status === "added" ? [relPath] : [],
-    updatedFiles: result.status === "updated" ? [relPath] : [],
+    addedFiles: result.status === "added" ? [canonicalRelPath] : [],
+    updatedFiles: result.status === "updated" ? [canonicalRelPath] : [],
     removedFiles: [],
     linkChanges,
   };
@@ -159,23 +171,25 @@ export function applyFileUpsert(db: VaultDB, vaultDir: string, relPath: string):
 
 /** Apply a single filesystem delete event incrementally. */
 export function applyFileDelete(db: VaultDB, relPath: string): ScanResult {
-  const removedId = db.deleteFileByPath(relPath);
+  const canonicalRelPath = relPath.normalize("NFC");
+  const removedId = db.deleteFileByPath(canonicalRelPath);
   if (removedId === null) {
     return { addedFiles: [], updatedFiles: [], removedFiles: [], linkChanges: [] };
   }
   const resolverIndex = db.buildResolverIndex();
   const linkChanges = db.reresolveAllLinks(resolverIndex);
-  return { addedFiles: [], updatedFiles: [], removedFiles: [relPath], linkChanges };
+  return { addedFiles: [], updatedFiles: [], removedFiles: [canonicalRelPath], linkChanges };
 }
 
 /** Rename = delete old path + upsert new path, re-resolving links across the vault. */
 export function applyFileRename(db: VaultDB, vaultDir: string, oldRelPath: string, newRelPath: string): ScanResult {
-  db.deleteFileByPath(oldRelPath);
+  const canonicalOldRelPath = oldRelPath.normalize("NFC");
+  db.deleteFileByPath(canonicalOldRelPath);
   const upsertResult = applyFileUpsert(db, vaultDir, newRelPath);
   return {
     addedFiles: upsertResult.addedFiles,
     updatedFiles: upsertResult.updatedFiles,
-    removedFiles: [oldRelPath],
+    removedFiles: [canonicalOldRelPath],
     linkChanges: upsertResult.linkChanges,
   };
 }

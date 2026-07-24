@@ -1,6 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -82,6 +82,32 @@ describe("write tools (create_note, append_to_note) — isolated writable vault 
     );
     expect(result).toContain("Created New Idea.md");
     expect(readFileSync(path.join(tmpVault, "New Idea.md"), "utf8")).toContain("Replaced content.");
+  });
+
+  it("read_note finds a note by its NFC path even when the file on disk is named in NFD", async () => {
+    const nfcName = "정규화노트";
+    const nfdName = nfcName.normalize("NFD");
+    expect(nfdName).not.toBe(nfcName);
+    writeFileSync(path.join(tmpVault, `${nfdName}.md`), "NFD-named content.");
+    engine.indexFileNow(`${nfdName}.md`);
+
+    const read = textOf((await client.callTool({ name: "read_note", arguments: { path: nfcName } })) as any);
+    expect(read).toContain("NFD-named content.");
+  });
+
+  it("create_note reports the NFD-named file as already existing instead of duplicating it", async () => {
+    const nfcName = "중복방지노트";
+    const nfdName = nfcName.normalize("NFD");
+    writeFileSync(path.join(tmpVault, `${nfdName}.md`), "original.");
+    engine.indexFileNow(`${nfdName}.md`);
+
+    const result = textOf(
+      (await client.callTool({ name: "create_note", arguments: { path: nfcName, content: "duplicate?" } })) as any,
+    );
+    expect(result).toContain("already exists");
+
+    const matches = readdirSync(tmpVault).filter((e) => e.normalize("NFC") === `${nfcName}.md`);
+    expect(matches).toHaveLength(1);
   });
 
   it("create_note rejects path traversal", async () => {

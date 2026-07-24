@@ -37,6 +37,13 @@ describe("toSafeVaultRelPath", () => {
   it("normalizes backslashes to forward slashes", () => {
     expect(toSafeVaultRelPath("Projects\\New Idea")).toBe("Projects/New Idea.md");
   });
+
+  it("canonicalizes the result to Unicode NFC", () => {
+    const nfcName = "테스트노트";
+    const nfdName = nfcName.normalize("NFD");
+    expect(nfdName).not.toBe(nfcName);
+    expect(toSafeVaultRelPath(nfdName)).toBe(`${nfcName}.md`);
+  });
 });
 
 describe("resolveWithinVault", () => {
