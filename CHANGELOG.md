@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project doesn't yet follow strict semver pre-1.0.
 
+## [0.3.2] — 2026-07-24
+
+### Fixed
+
+- `read_note` no longer masks a "note not found" result behind a generic `Output validation error` — it declares an `outputSchema`, and its not-found branch wasn't returning `structuredContent` to satisfy it, so the MCP SDK's own validation overwrote the real error message. It now returns `structuredContent: { error }` alongside the readable text.
+- Vault scanning now skips every dotfile and dot-directory (not just the explicitly named ones like `.obsidian`), which stops macOS's AppleDouble sidecar files (`._Some Note.md`) — written for every file on a non-APFS/HFS+ external drive (exFAT, FAT32) — from being indexed as real notes. Previously these could surface in search results and even get selected as a `get_context_bundle` center note, returning binary resource-fork data as note content.
+
 ## [0.3.1] — 2026-07-24
 
 ### Fixed

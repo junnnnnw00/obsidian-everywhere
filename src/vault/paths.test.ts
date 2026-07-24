@@ -61,4 +61,17 @@ describe("shouldExclude", () => {
     expect(shouldExclude(".trash/Old Note.md")).toBe(true);
     expect(shouldExclude("Folder/Note.md.oe-tmp-123")).toBe(true);
   });
+
+  it("excludes any dotfile or dot-directory, not just the named excludeDirs", () => {
+    expect(shouldExclude(".DS_Store")).toBe(true);
+    expect(shouldExclude("Folder/.DS_Store")).toBe(true);
+    // AppleDouble sidecar files macOS writes on non-APFS/HFS+ (exFAT, FAT32) drives.
+    expect(shouldExclude("PROVE/._Some Note.md")).toBe(true);
+    expect(shouldExclude(".well-hidden/Note.md")).toBe(true);
+  });
+
+  it("does not exclude ordinary notes", () => {
+    expect(shouldExclude("PROVE/Some Note.md")).toBe(false);
+    expect(shouldExclude("Note.md")).toBe(false);
+  });
 });

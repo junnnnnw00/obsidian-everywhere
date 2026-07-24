@@ -164,6 +164,16 @@ describe("MCP stdio-layer tool server", () => {
     expect(scoped).not.toContain("More content here");
   });
 
+  it("read_note reports a clean not-found error instead of an output-validation error", async () => {
+    const result = (await client.callTool({
+      name: "read_note",
+      arguments: { path: "Nonexistent Note Xyz" },
+    })) as any;
+    expect(result.isError).toBeFalsy();
+    expect(textOf(result)).toBe("Note not found: Nonexistent Note Xyz");
+    expect(result.structuredContent).toEqual({ error: "Note not found: Nonexistent Note Xyz" });
+  });
+
   it("get_backlinks lists all sources linking to Hub Note", async () => {
     const text = textOf((await client.callTool({ name: "get_backlinks", arguments: { path: "Hub Note" } })) as any);
     expect(text).toContain("Backlink Test A.md");

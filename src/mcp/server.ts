@@ -149,43 +149,55 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         limit: z.number().int().positive().max(5000).optional().describe("Maximum lines to return (default 500)."),
       },
       outputSchema: {
-        path: z.string(),
-        title: z.string().nullable(),
-        content: z.string(),
-        frontmatter: z.record(z.string(), z.unknown()),
-        outlinks: z.array(
-          z.object({
-            target: z.string(),
-            resolvedPath: z.string().nullable(),
-            type: z.string(),
-            line: z.number().nullable(),
-          }),
-        ),
-        backlinks: z.array(
-          z.object({
-            sourcePath: z.string(),
-            type: z.string(),
-            line: z.number().nullable(),
-            context: z.string().nullable(),
-          }),
-        ),
-        tags: z.array(z.string()),
-        pagination: z.object({
-          offset: z.number(),
-          limit: z.number(),
-          returnedLines: z.number(),
-          totalLines: z.number(),
-          hasMore: z.boolean(),
-          nextOffset: z.number().nullable(),
-        }),
+        path: z.string().optional(),
+        title: z.string().nullable().optional(),
+        content: z.string().optional(),
+        frontmatter: z.record(z.string(), z.unknown()).optional(),
+        outlinks: z
+          .array(
+            z.object({
+              target: z.string(),
+              resolvedPath: z.string().nullable(),
+              type: z.string(),
+              line: z.number().nullable(),
+            }),
+          )
+          .optional(),
+        backlinks: z
+          .array(
+            z.object({
+              sourcePath: z.string(),
+              type: z.string(),
+              line: z.number().nullable(),
+              context: z.string().nullable(),
+            }),
+          )
+          .optional(),
+        tags: z.array(z.string()).optional(),
+        pagination: z
+          .object({
+            offset: z.number(),
+            limit: z.number(),
+            returnedLines: z.number(),
+            totalLines: z.number(),
+            hasMore: z.boolean(),
+            nextOffset: z.number().nullable(),
+          })
+          .optional(),
         heading: z.string().optional(),
         warning: z.string().optional(),
+        // Set instead of the fields above when the note couldn't be resolved.
+        // (`outputSchema` requires *some* structuredContent on every response,
+        // including this one — see `registerTool`'s validation in the SDK.)
+        error: z.string().optional(),
       },
       annotations: READ_ONLY,
     },
     async (args) => {
       const data = tools.readNoteData(engine, args);
-      if ("error" in data) return textResult(data.error);
+      if ("error" in data) {
+        return { content: [{ type: "text" as const, text: data.error }], structuredContent: { error: data.error } };
+      }
       return {
         content: [{ type: "text" as const, text: tools.readNote(engine, args) }],
         structuredContent: { ...data },

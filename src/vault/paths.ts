@@ -22,9 +22,18 @@ export function extOf(relPath: string): string {
   return idx === -1 ? "" : base.slice(idx + 1).toLowerCase();
 }
 
+/**
+ * Any path segment starting with "." is excluded — not just the specific
+ * names in `excludeDirs`. This covers OS/tool housekeeping files Obsidian
+ * itself never shows (`.DS_Store`, `.git`), and, notably, the AppleDouble
+ * sidecar files (`._Some Note.md`) macOS writes for every file on a
+ * non-APFS/HFS+ volume (exFAT, FAT32 — the common case for external
+ * drives): without this, those sidecars end up indexed as real notes,
+ * since they end in `.md` but their content is binary resource-fork data.
+ */
 export function shouldExclude(relPath: string, excludeDirs: string[] = DEFAULT_EXCLUDE_DIRS): boolean {
   const segments = relPath.split("/");
-  return segments.some((seg) => excludeDirs.includes(seg) || seg.includes(".oe-tmp-"));
+  return segments.some((seg) => seg.startsWith(".") || excludeDirs.includes(seg) || seg.includes(".oe-tmp-"));
 }
 
 /**
