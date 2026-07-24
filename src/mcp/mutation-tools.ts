@@ -3,7 +3,7 @@ import path from "node:path";
 import matter from "gray-matter";
 import { parseNote } from "../parser/markdown.js";
 import { resolveLink, type ResolverIndex } from "../vault/resolve.js";
-import { resolveWithinVault, toSafeVaultRelPath } from "../vault/paths.js";
+import { resolveExistingVaultPath, resolveWithinVault, toSafeVaultRelPath } from "../vault/paths.js";
 import { filesystemErrorMessage, writeFileAtomic } from "../vault/write.js";
 import type { VaultEngine } from "../vault-engine.js";
 import { resolveNoteArg } from "./tools.js";
@@ -18,7 +18,7 @@ function saveParsedNote(
   frontmatter: Record<string, unknown>,
   body: string,
 ): void {
-  const absPath = resolveWithinVault(engine.vaultDir, relPath);
+  const absPath = resolveExistingVaultPath(engine.vaultDir, relPath);
   writeFileAtomic(absPath, serializeNote(frontmatter, body));
   engine.indexFileNow(relPath);
 }
@@ -47,7 +47,7 @@ export function replaceText(engine: VaultEngine, args: ReplaceTextArgs): string 
   if (!file) return `Error: note not found: ${args.path}`;
   if (!args.find) return "Error: find must not be empty.";
 
-  const absPath = resolveWithinVault(engine.vaultDir, file.path);
+  const absPath = resolveExistingVaultPath(engine.vaultDir, file.path);
   const raw = readFileSync(absPath, "utf8");
   const occurrences = countLiteral(raw, args.find);
   if (occurrences === 0) return `Error: text not found in ${file.path}. Nothing was written.`;
@@ -77,7 +77,7 @@ export interface PatchSectionArgs {
 export function patchSection(engine: VaultEngine, args: PatchSectionArgs): string {
   const file = resolveNoteArg(engine, args.path);
   if (!file) return `Error: note not found: ${args.path}`;
-  const raw = readFileSync(resolveWithinVault(engine.vaultDir, file.path), "utf8");
+  const raw = readFileSync(resolveExistingVaultPath(engine.vaultDir, file.path), "utf8");
   const parsed = parseNote(raw);
   const headingIndex = parsed.headings.findIndex(
     (heading) => heading.text.trim().toLowerCase() === args.heading.trim().toLowerCase(),
@@ -119,7 +119,7 @@ export function updateFrontmatter(
   const file = resolveNoteArg(engine, args.path);
   if (!file) return `Error: note not found: ${args.path}`;
   if (Object.keys(args.fields).length === 0) return "Error: fields must not be empty.";
-  const raw = readFileSync(resolveWithinVault(engine.vaultDir, file.path), "utf8");
+  const raw = readFileSync(resolveExistingVaultPath(engine.vaultDir, file.path), "utf8");
   const parsed = parseNote(raw);
   try {
     saveParsedNote(engine, file.path, { ...parsed.frontmatter, ...args.fields }, parsed.body);
@@ -132,7 +132,7 @@ export function updateFrontmatter(
 export function removeFrontmatterField(engine: VaultEngine, args: { path: string; field: string }): string {
   const file = resolveNoteArg(engine, args.path);
   if (!file) return `Error: note not found: ${args.path}`;
-  const raw = readFileSync(resolveWithinVault(engine.vaultDir, file.path), "utf8");
+  const raw = readFileSync(resolveExistingVaultPath(engine.vaultDir, file.path), "utf8");
   const parsed = parseNote(raw);
   if (!(args.field in parsed.frontmatter)) {
     return `Error: frontmatter field "${args.field}" not found in ${file.path}. Nothing was written.`;
@@ -237,7 +237,7 @@ export function moveNote(engine: VaultEngine, args: MoveNoteArgs): string {
     return `Error: ${(err as Error).message}`;
   }
   if (newPath === source.path) return `Error: source and destination are the same: ${source.path}`;
-  const oldAbs = resolveWithinVault(engine.vaultDir, source.path);
+  const oldAbs = resolveExistingVaultPath(engine.vaultDir, source.path);
   const newAbs = resolveWithinVault(engine.vaultDir, newPath);
   if (existsSync(newAbs)) return `Error: destination already exists: ${newPath}`;
 
@@ -246,7 +246,7 @@ export function moveNote(engine: VaultEngine, args: MoveNoteArgs): string {
   const rewritten = new Map<string, string>();
   if (updateLinks) {
     for (const file of engine.db.getAllFiles().filter((row) => row.is_markdown === 1)) {
-      const raw = readFileSync(resolveWithinVault(engine.vaultDir, file.path), "utf8");
+      const raw = readFileSync(resolveExistingVaultPath(engine.vaultDir, file.path), "utf8");
       const changed = rewriteLinks(raw, source.path, newPath, resolverIndex);
       if (changed !== raw) rewritten.set(file.path, changed);
     }
@@ -255,19 +255,20 @@ export function moveNote(engine: VaultEngine, args: MoveNoteArgs): string {
   const backups = new Map<string, string>();
   try {
     for (const relPath of rewritten.keys()) {
-      backups.set(relPath, readFileSync(resolveWithinVault(engine.vaultDir, relPath), "utf8"));
+      backups.set(relPath, readFileSync(resolveExistingVaultPath(engine.vaultDir, relPath), "utf8"));
     }
     mkdirSync(path.dirname(newAbs), { recursive: true });
     renameSync(oldAbs, newAbs);
     for (const [relPath, content] of rewritten) {
       const targetPath = relPath === source.path ? newPath : relPath;
-      writeFileAtomic(resolveWithinVault(engine.vaultDir, targetPath), content);
+      writeFileAtomic(resolveExistingVaultPath(engine.vaultDir, targetPath), content);
     }
     engine.refreshNow();
   } catch (err) {
     try {
       if (existsSync(newAbs) && !existsSync(oldAbs)) renameSync(newAbs, oldAbs);
-      for (const [relPath, content] of backups) writeFileAtomic(resolveWithinVault(engine.vaultDir, relPath), content);
+      for (const [relPath, content] of backups)
+        writeFileAtomic(resolveExistingVaultPath(engine.vaultDir, relPath), content);
       engine.refreshNow();
     } catch {
       // Report the original error; a restart/full scan will reconcile the index.
@@ -297,7 +298,7 @@ export function deleteNote(engine: VaultEngine, args: { path: string; force?: bo
   if (backlinks.length > 0 && !(args.force ?? false)) {
     return `Error: ${file.path} has ${backlinks.length} backlink(s). Pass force: true to delete it intentionally.`;
   }
-  const absPath = resolveWithinVault(engine.vaultDir, file.path);
+  const absPath = resolveExistingVaultPath(engine.vaultDir, file.path);
   try {
     if (args.permanent ?? false) {
       unlinkSync(absPath);
@@ -376,7 +377,7 @@ export function bulkReplace(engine: VaultEngine, args: BulkReplaceArgs): string 
     .filter((file) => file.is_markdown === 1 && (!folder || file.path.startsWith(`${folder}/`)));
   const changes: { path: string; before: string; after: string; count: number }[] = [];
   for (const file of candidates) {
-    const before = readFileSync(resolveWithinVault(engine.vaultDir, file.path), "utf8");
+    const before = readFileSync(resolveExistingVaultPath(engine.vaultDir, file.path), "utf8");
     const result = replacementFor(before, args.find, args.replace, regex);
     if (result.count > 0) changes.push({ path: file.path, before, after: result.text, count: result.count });
   }
@@ -398,12 +399,13 @@ export function bulkReplace(engine: VaultEngine, args: BulkReplaceArgs): string 
   const manifestPath = path.join(rollbackDir(engine), `${id}.json`);
   try {
     writeFileAtomic(manifestPath, JSON.stringify(manifest));
-    for (const change of changes) writeFileAtomic(resolveWithinVault(engine.vaultDir, change.path), change.after);
+    for (const change of changes)
+      writeFileAtomic(resolveExistingVaultPath(engine.vaultDir, change.path), change.after);
     engine.refreshNow();
   } catch (err) {
     for (const change of changes) {
       try {
-        writeFileAtomic(resolveWithinVault(engine.vaultDir, change.path), change.before);
+        writeFileAtomic(resolveExistingVaultPath(engine.vaultDir, change.path), change.before);
       } catch {
         // Continue restoring the remaining files.
       }
@@ -423,7 +425,7 @@ export function rollbackBulkEdit(engine: VaultEngine, args: { rollbackId: string
     manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as RollbackManifest;
     for (const file of manifest.files) {
       const safePath = toSafeVaultRelPath(file.path);
-      writeFileAtomic(resolveWithinVault(engine.vaultDir, safePath), file.content);
+      writeFileAtomic(resolveExistingVaultPath(engine.vaultDir, safePath), file.content);
     }
     engine.refreshNow();
   } catch (err) {

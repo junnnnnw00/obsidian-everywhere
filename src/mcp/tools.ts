@@ -3,7 +3,7 @@ import matter from "gray-matter";
 import type { FileRow } from "../index/db.js";
 import { parseNote } from "../parser/markdown.js";
 import { resolveLink } from "../vault/resolve.js";
-import { resolveWithinVault, toSafeVaultRelPath } from "../vault/paths.js";
+import { resolveExistingVaultPath, toSafeVaultRelPath } from "../vault/paths.js";
 import { writeFileAtomic } from "../vault/write.js";
 import type { VaultEngine } from "../vault-engine.js";
 import { estimateTokens, extractSection, firstParagraph, formatFrontmatter, truncateToTokens } from "./format.js";
@@ -636,7 +636,11 @@ export function createNote(engine: VaultEngine, args: CreateNoteArgs): string {
   let absPath: string;
   try {
     relPath = toSafeVaultRelPath(args.path);
-    absPath = resolveWithinVault(engine.vaultDir, relPath);
+    // Resolves to the real on-disk file when overwriting an existing note
+    // that happens to be named in a different Unicode normalization form
+    // than `relPath` (see resolveExistingVaultPath) — falls back to the
+    // plain (NFC) target path when nothing exists yet, i.e. a genuine create.
+    absPath = resolveExistingVaultPath(engine.vaultDir, relPath);
   } catch (err) {
     return `Error: ${(err as Error).message}`;
   }
@@ -675,7 +679,7 @@ export function appendToNote(engine: VaultEngine, args: AppendToNoteArgs): strin
   const file = resolveNoteArg(engine, args.path);
   if (!file) return `Error: note not found: ${args.path}. Use create_note to make a new one.`;
 
-  const absPath = resolveWithinVault(engine.vaultDir, file.path);
+  const absPath = resolveExistingVaultPath(engine.vaultDir, file.path);
   const raw = readFileSync(absPath, "utf8");
   const parsed = parseNote(raw);
 

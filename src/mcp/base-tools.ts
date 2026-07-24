@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import matter from "gray-matter";
 import path from "node:path";
-import { resolveWithinVault, shouldExclude } from "../vault/paths.js";
+import { resolveExistingVaultPath, shouldExclude } from "../vault/paths.js";
 import type { VaultEngine } from "../vault-engine.js";
 
 interface ValidationResult {
@@ -23,7 +23,7 @@ function safeBasePath(engine: VaultEngine, requested: string): string {
   ) {
     throw new Error("path must be a safe, non-excluded vault-relative .base or .md path");
   }
-  return resolveWithinVault(engine.vaultDir, rel);
+  return resolveExistingVaultPath(engine.vaultDir, rel.normalize("NFC"));
 }
 
 function yamlParse(source: string): unknown {

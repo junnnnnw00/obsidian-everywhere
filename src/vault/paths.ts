@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 export const DEFAULT_EXCLUDE_DIRS = [".obsidian", ".git", ".trash", "node_modules", ".obsidian-everywhere"];
@@ -80,4 +81,28 @@ export function resolveWithinVault(vaultDir: string, safeRelPath: string): strin
     throw new Error("resolved path escapes the vault");
   }
   return absTarget;
+}
+
+/**
+ * Like `resolveWithinVault`, but for a path expected to already exist on
+ * disk: `relPath` is normally the DB's NFC-canonical `path` for a file
+ * (see index/scan.ts), but a filesystem that doesn't unify Unicode
+ * normalization forms itself (most non-macOS filesystems, and some
+ * external exFAT/FAT32 drives even on macOS) stores the file under
+ * whichever form it was originally written in, often NFD for Korean or
+ * accented names. Falls back to the alternate normalization form if the
+ * primary (NFC) path isn't actually there; returns the primary path
+ * unchanged if neither form exists, so callers still get a normal ENOENT
+ * rather than a silently wrong path.
+ */
+export function resolveExistingVaultPath(vaultDir: string, relPath: string): string {
+  const primary = resolveWithinVault(vaultDir, relPath);
+  if (existsSync(primary)) return primary;
+
+  const nfc = relPath.normalize("NFC");
+  const nfd = relPath.normalize("NFD");
+  if (nfc === nfd) return primary;
+
+  const alt = resolveWithinVault(vaultDir, relPath === nfc ? nfd : nfc);
+  return existsSync(alt) ? alt : primary;
 }
