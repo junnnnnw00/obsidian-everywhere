@@ -146,7 +146,7 @@ export async function diagnoseVault(vaultInput: string): Promise<DoctorReport> {
   if (!checks.some((check) => check.status === "fail")) {
     const engine = new VaultEngine({ vaultDir, dbPath: ":memory:" });
     try {
-      engine.init();
+      await engine.init();
       unresolvedCount = engine.db.findUnresolved().length;
       checks.push({
         name: "Index engine",
@@ -202,7 +202,7 @@ export async function runDemo(): Promise<string> {
     mkdirSync(projects, { recursive: true });
     mkdirSync(reading, { recursive: true });
     createDemoVault(vaultDir);
-    engine.init();
+    await engine.init();
 
     const overview = tools.vaultOverview(engine);
     const unresolved = tools.findUnresolved(engine);

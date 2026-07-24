@@ -4,6 +4,7 @@ import path from "node:path";
 import { createOAuthHttpApp } from "./oauth/http-app.js";
 import { VaultEngine } from "./vault-engine.js";
 import { oauthWriteToolsEnabled } from "./env.js";
+import { resolveDbPath } from "./vault/db-path.js";
 
 function resolveConfig(): { vaultDir: string; dbPath: string; port: number; issuerUrl: URL; loginSecret: string } {
   const vaultDir = process.env.OBSIDIAN_VAULT_PATH ?? process.argv[2];
@@ -24,8 +25,7 @@ function resolveConfig(): { vaultDir: string; dbPath: string; port: number; issu
     process.exit(1);
   }
   const resolvedVault = path.resolve(vaultDir);
-  const dbPath =
-    process.env.OBSIDIAN_EVERYWHERE_DB ?? path.join(resolvedVault, ".obsidian-everywhere", "index-oauth.db");
+  const dbPath = resolveDbPath(resolvedVault, "index-oauth.db");
   const port = Number(process.env.PORT ?? 3738);
   return { vaultDir: resolvedVault, dbPath, port, issuerUrl: new URL(issuer), loginSecret };
 }
@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   if (dbPath !== ":memory:") mkdirSync(path.dirname(dbPath), { recursive: true });
 
   const engine = new VaultEngine({ vaultDir, dbPath });
-  engine.init();
+  await engine.init();
   engine.watch();
 
   const enableWriteTools = oauthWriteToolsEnabled();

@@ -27,7 +27,7 @@ describe("write tools (create_note, append_to_note) — isolated writable vault 
     cpSync(fixtureVault, tmpVault, { recursive: true });
 
     engine = new VaultEngine({ vaultDir: tmpVault, dbPath: ":memory:" });
-    engine.init(); // no .watch() — write tools reindex synchronously via engine.indexFileNow
+    await engine.init(); // no .watch() — write tools reindex synchronously via engine.indexFileNow
 
     const server = createServer(engine); // write tools enabled by default
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

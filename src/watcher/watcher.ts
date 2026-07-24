@@ -31,9 +31,13 @@ export interface StartWatcherOptions {
  */
 export function startWatcher(options: StartWatcherOptions): FSWatcher {
   const excludeDirs = options.excludeDirs ?? DEFAULT_EXCLUDE_DIRS;
+  const isExternalVolume = options.vaultDir.startsWith("/Volumes/");
+  const usePolling = process.env.CHOKIDAR_USEPOLLING === "true" || isExternalVolume;
 
   const watcher = chokidar.watch(options.vaultDir, {
     ignoreInitial: true,
+    usePolling,
+    ...(usePolling ? { interval: 2000, binaryInterval: 3000 } : {}),
     ignored: (filePath: string) => {
       const rel = toPosixPath(path.relative(options.vaultDir, filePath));
       return rel !== "" && shouldExclude(rel, excludeDirs);
@@ -41,11 +45,15 @@ export function startWatcher(options: StartWatcherOptions): FSWatcher {
   });
 
   const handle = (type: WatchEventType, absPath: string): void => {
-    const rel = toPosixPath(path.relative(options.vaultDir, absPath));
-    const scanResult =
-      type === "unlink" ? applyFileDelete(options.db, rel) : applyFileUpsert(options.db, options.vaultDir, rel);
-    options.graph.applyScanResult(options.db, scanResult);
-    options.onEvent?.({ type, path: rel, scanResult });
+    try {
+      const rel = toPosixPath(path.relative(options.vaultDir, absPath));
+      const scanResult =
+        type === "unlink" ? applyFileDelete(options.db, rel) : applyFileUpsert(options.db, options.vaultDir, rel);
+      options.graph.applyScanResult(options.db, scanResult);
+      options.onEvent?.({ type, path: rel, scanResult });
+    } catch (err) {
+      console.error(`[obsidian-everywhere watcher] Error handling ${type} for ${absPath}:`, err);
+    }
   };
 
   watcher.on("add", (p) => handle("add", p));

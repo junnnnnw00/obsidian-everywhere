@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project doesn't yet follow strict semver pre-1.0.
 
+## [Unreleased]
+
+### Fixed
+
+- `VaultDB.upsertFileMeta` now upserts (`ON CONFLICT ... DO UPDATE`) instead of plain `INSERT`, fixing a `SQLITE_CONSTRAINT` crash the filesystem watcher could hit on a duplicate/racing write event; the watcher also no longer takes the whole process down on a single file's indexing error.
+- External-volume vaults (paths under `/Volumes/...`) now index over polling (`chokidar`'s `usePolling`) instead of native FS events, and store their SQLite index under `~/.obsidian-everywhere/` instead of on the (often exFAT/FAT32) external drive itself.
+- `VaultEngine.init()` now waits for the vault directory's listing to read stable twice in a row before running the initial `fullScan`, so a server that auto-starts before an external/network drive finishes mounting no longer silently indexes a near-empty vault. See `docs/deploy.md` (External or network-mounted vaults) for the tuning env vars.
+
 ## [0.3.0] — 2026-07-20
 
 ### Added

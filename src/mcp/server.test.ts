@@ -22,7 +22,7 @@ describe("MCP stdio-layer tool server", () => {
 
   beforeAll(async () => {
     engine = new VaultEngine({ vaultDir, dbPath: ":memory:" });
-    engine.init();
+    await engine.init();
 
     const server = createServer(engine);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

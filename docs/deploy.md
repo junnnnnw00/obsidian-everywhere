@@ -173,3 +173,27 @@ a host has been offline long enough that events could plausibly have been
 missed (mtime+hash comparison catches this), the next process start
 performs `fullScan`, which is itself mtime+hash-gated so only files that
 actually differ get re-parsed.
+
+### External or network-mounted vaults
+
+If the vault lives on a removable/external drive or a network mount, and
+the server is set to start automatically at boot/login (a LaunchAgent,
+systemd unit, etc.), it can start racing the OS's own mount step: the
+directory technically exists but its listing is still filling in. A
+`fullScan` that runs during that window indexes whatever partial listing
+it saw — not an error, just a much smaller vault than expected — and
+nothing re-triggers a rescan on its own afterwards.
+
+`VaultEngine.init()` guards against this by waiting for the vault
+directory's top-level listing to read identically twice in a row before
+scanning (bounded by a timeout, so a genuinely empty vault or an
+unmountable path doesn't hang startup). Tune it with:
+
+- `OBSIDIAN_EVERYWHERE_MOUNT_WAIT_MS` — max time to wait for the listing to
+  stabilize before giving up and scanning anyway (default `5000`).
+- `OBSIDIAN_EVERYWHERE_MOUNT_POLL_MS` — delay between listing attempts
+  (default `200`).
+
+If a scan still ends up short, `obsidian-everywhere doctor <vault-path>`
+reports the note count it found — rerun it after confirming the drive is
+fully mounted, then restart the server to force a fresh `fullScan`.

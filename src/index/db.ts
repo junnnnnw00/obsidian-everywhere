@@ -91,7 +91,16 @@ export class VaultDB {
     }
     const info = this.db
       .prepare(
-        `INSERT INTO files (path, title, is_markdown, mtime, hash, frontmatter_json, raw_content, updated_at) VALUES (?,?,?,?,?,?,?,?)`,
+        `INSERT INTO files (path, title, is_markdown, mtime, hash, frontmatter_json, raw_content, updated_at)
+         VALUES (?,?,?,?,?,?,?,?)
+         ON CONFLICT(path) DO UPDATE SET
+           title=excluded.title,
+           is_markdown=excluded.is_markdown,
+           mtime=excluded.mtime,
+           hash=excluded.hash,
+           frontmatter_json=excluded.frontmatter_json,
+           raw_content=excluded.raw_content,
+           updated_at=excluded.updated_at`,
       )
       .run(
         meta.path,
@@ -103,7 +112,7 @@ export class VaultDB {
         meta.rawContent,
         now,
       );
-    const id = Number(info.lastInsertRowid);
+    const id = Number(info.lastInsertRowid) || (this.getFileByPath(meta.path)?.id ?? 0);
     this.upsertFts(id, meta.path, meta.title, meta.rawContent);
     return id;
   }
@@ -117,9 +126,10 @@ export class VaultDB {
   }
 
   private upsertFts(id: number, path: string, title: string | null, content: string | null): void {
+    if (!id) return;
     this.db.prepare("DELETE FROM files_fts WHERE rowid = ?").run(id);
     this.db
-      .prepare("INSERT INTO files_fts (rowid, path, title, content) VALUES (?,?,?,?)")
+      .prepare("INSERT OR REPLACE INTO files_fts (rowid, path, title, content) VALUES (?,?,?,?)")
       .run(id, path, title ?? "", content ?? "");
   }
 

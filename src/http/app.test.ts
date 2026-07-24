@@ -18,7 +18,7 @@ describe("Streamable HTTP transport (real listening server)", () => {
 
   beforeAll(async () => {
     engine = new VaultEngine({ vaultDir, dbPath: ":memory:" });
-    engine.init();
+    await engine.init();
     const app = createHttpApp(engine, { bearerToken: TOKEN });
     await new Promise<void>((resolve) => {
       httpServer = app.listen(0, () => resolve());

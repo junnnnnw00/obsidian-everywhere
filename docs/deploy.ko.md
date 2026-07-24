@@ -123,3 +123,14 @@ curl https://obsidian.example.com/.well-known/oauth-authorization-server
 이 서버는 vault 자체를 컴퓨터 사이에서 동기화하지 않습니다. Git, Obsidian Sync 등 기존 동기화 수단을 사용해야 합니다.
 
 새 파일이나 변경 파일이 디스크에 도착하면 `chokidar` watcher가 생성·수정·삭제·이름 변경을 감지해 SQLite 인덱스와 인메모리 그래프를 증분 갱신합니다. 오랫동안 꺼져 있던 프로세스가 다시 시작되면 mtime과 hash를 비교하는 전체 scan이 실행되며 실제로 달라진 파일만 다시 파싱합니다.
+
+### 외장/네트워크 드라이브에 있는 vault
+
+vault가 외장 드라이브나 네트워크 마운트에 있고 서버가 부팅/로그인 시 자동 실행되도록 설정돼 있다면(LaunchAgent, systemd 유닛 등), OS의 마운트 절차와 경합할 수 있습니다 — 디렉터리 자체는 이미 존재하지만 내부 목록은 아직 채워지는 중인 상태입니다. 이 타이밍에 `fullScan`이 실행되면 에러 없이 그 순간 보이던 일부 목록만으로 인덱싱을 마쳐버리고, 이후 저절로 다시 스캔되지 않습니다.
+
+`VaultEngine.init()`은 vault 디렉터리의 최상위 목록을 연속 두 번 동일하게 읽을 때까지 스캔을 미뤄서 이 문제를 막습니다(타임아웃이 있어 실제로 빈 vault나 마운트 불가능한 경로에서 시작이 멈추지 않습니다). 다음 환경변수로 조정할 수 있습니다:
+
+- `OBSIDIAN_EVERYWHERE_MOUNT_WAIT_MS` — 목록이 안정될 때까지 기다리는 최대 시간, 이후엔 그냥 스캔을 진행 (기본값 `5000`)
+- `OBSIDIAN_EVERYWHERE_MOUNT_POLL_MS` — 목록을 다시 읽는 간격 (기본값 `200`)
+
+그래도 스캔 결과가 예상보다 적다면 `obsidian-everywhere doctor <vault-path>`로 실제 인식된 노트 수를 확인하세요. 드라이브가 완전히 마운트된 걸 확인한 뒤 서버를 재시작하면 `fullScan`이 새로 실행됩니다.

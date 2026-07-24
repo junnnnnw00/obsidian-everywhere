@@ -69,7 +69,7 @@ describe("OAuth 2.1 flow (PKCE + Dynamic Client Registration) — real HTTP, loc
 
   beforeAll(async () => {
     engine = new VaultEngine({ vaultDir, dbPath: ":memory:" });
-    engine.init();
+    await engine.init();
     const port = await getFreePort();
     issuerUrl = `http://127.0.0.1:${port}`;
     const app = createOAuthHttpApp(engine, { issuerUrl: new URL(issuerUrl), loginSecret: LOGIN_SECRET });

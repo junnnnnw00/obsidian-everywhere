@@ -26,14 +26,15 @@ Environment:
   OBSIDIAN_VAULT_PATH may replace <vault-path>.`;
 }
 
+import { resolveDbPath } from "./vault/db-path.js";
+
 function resolveConfig(vaultArg?: string): { vaultDir: string; dbPath: string } {
   const vaultDir = process.env.OBSIDIAN_VAULT_PATH ?? vaultArg;
   if (!vaultDir) {
     throw new Error("Missing vault path.\n\n" + usage());
   }
   const resolvedVault = path.resolve(vaultDir);
-  const dbPath =
-    process.env.OBSIDIAN_EVERYWHERE_DB ?? path.join(resolvedVault, ".obsidian-everywhere", "index-stdio.db");
+  const dbPath = resolveDbPath(resolvedVault, "index-stdio.db");
   return { vaultDir: resolvedVault, dbPath };
 }
 
@@ -76,7 +77,7 @@ async function main(): Promise<void> {
   mkdirSync(path.dirname(dbPath), { recursive: true });
 
   const engine = new VaultEngine({ vaultDir, dbPath });
-  engine.init();
+  await engine.init();
   engine.watch();
 
   const server = createServer(engine, { enableWriteTools: writeToolsEnabledByDefault() });

@@ -3,6 +3,7 @@ import { VaultGraph } from "./graph/graph.js";
 import { VaultDB } from "./index/db.js";
 import { applyFileDelete, applyFileUpsert, fullScan, type ScanResult } from "./index/scan.js";
 import { DEFAULT_EXCLUDE_DIRS } from "./vault/paths.js";
+import { waitForStableVaultListing } from "./vault/wait-for-mount.js";
 import { startWatcher, type WatchEvent } from "./watcher/watcher.js";
 
 export interface VaultEngineOptions {
@@ -29,8 +30,14 @@ export class VaultEngine {
     this.graph = new VaultGraph();
   }
 
-  /** Full initial index + graph build. Call once before serving requests. */
-  init(): void {
+  /**
+   * Full initial index + graph build. Call once before serving requests.
+   * Waits for the vault directory's listing to stabilize first, so a
+   * still-mounting external/network drive doesn't get indexed mid-attach
+   * (see `waitForStableVaultListing`).
+   */
+  async init(): Promise<void> {
+    await waitForStableVaultListing(this.vaultDir);
     fullScan(this.db, this.vaultDir, this.excludeDirs);
     this.graph.loadFull(this.db);
   }
