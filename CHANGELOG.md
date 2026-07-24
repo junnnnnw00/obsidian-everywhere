@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project doesn't yet follow strict semver pre-1.0.
 
+## [0.3.3] — 2026-07-24
+
+### Fixed
+
+- Note path matching (`read_note`, `get_backlinks`, wikilink resolution, `create_note`, ...) is now Unicode-normalization-insensitive: paths, wikilink text, and frontmatter aliases are compared as NFC regardless of which form the underlying filename or note content happens to use. Previously a note whose file was NFD-named — the common case for Korean/accented filenames on a dumb external filesystem like exFAT or FAT32 — couldn't be found by a caller sending the (more common) NFC form, and `create_note` could silently write a byte-different duplicate next to it.
+- The published Docker image now starts and responds to MCP introspection with zero configuration (`docker run <image>` alone), by defaulting to the stdio transport against a small bundled sample vault instead of the bearer-token HTTP server, which always required a mounted volume and a secret to even start. This is what lets automated MCP directories (e.g. Glama) build and evaluate the image. Real deployments are unaffected — docker-compose.yml already mounts a real vault and overrides the command explicitly for both HTTP services.
+- Added `glama.json` so Glama can read maintainer ownership from the repo.
+
 ## [0.3.2] — 2026-07-24
 
 ### Fixed

@@ -1,6 +1,6 @@
 {
   "name": "obsidian-everywhere",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Graph-native MCP server for searching, navigating, and safely editing Obsidian vaults from any MCP client.",
   "mcpName": "io.github.junnnnnw00/obsidian-everywhere",
   "license": "MIT",
