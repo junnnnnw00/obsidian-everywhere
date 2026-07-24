@@ -16,15 +16,21 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 
 # Mount your vault at /vault (read/write — the index db lives alongside it
-# unless OBSIDIAN_EVERYWHERE_DB points elsewhere).
+# unless OBSIDIAN_EVERYWHERE_DB points elsewhere). Bind- or volume-mounting
+# here replaces the small bundled sample vault baked in below, so a real
+# deployment never sees it.
 ENV OBSIDIAN_VAULT_PATH=/vault
+COPY fixtures/test-vault /vault
 VOLUME ["/vault"]
 
 EXPOSE 3737 3738
 LABEL org.opencontainers.image.source="https://github.com/junnnnnw00/obsidian-everywhere"
 
-# Default to the static-bearer-token HTTP transport (the "lab server,
-# always-on fallback" role from docs/deploy.md — reached over Tailscale,
-# never exposed publicly). docker-compose.yml overrides the command to
-# dist/oauth-http-cli.js for the separate claude.ai-connector service.
-CMD ["node", "dist/http-cli.js"]
+# Default to the zero-config stdio MCP server against the bundled sample
+# vault above, so `docker run <image>` alone starts and responds to MCP
+# introspection with no mounted volume, port, or secret required — this is
+# what lets automated MCP directories (e.g. Glama) evaluate the image.
+# docker-compose.yml overrides `command` (to dist/http-cli.js or
+# dist/oauth-http-cli.js) and always mounts a real vault for the two
+# always-on HTTP services described in docs/deploy.md.
+CMD ["node", "dist/cli.js"]
