@@ -399,8 +399,7 @@ export function bulkReplace(engine: VaultEngine, args: BulkReplaceArgs): string 
   const manifestPath = path.join(rollbackDir(engine), `${id}.json`);
   try {
     writeFileAtomic(manifestPath, JSON.stringify(manifest));
-    for (const change of changes)
-      writeFileAtomic(resolveExistingVaultPath(engine.vaultDir, change.path), change.after);
+    for (const change of changes) writeFileAtomic(resolveExistingVaultPath(engine.vaultDir, change.path), change.after);
     engine.refreshNow();
   } catch (err) {
     for (const change of changes) {
