@@ -3,7 +3,7 @@
   "name": "io.github.junnnnnw00/obsidian-everywhere",
   "title": "Obsidian Everywhere",
   "description": "Graph-native MCP server for reading, navigating, and safely editing Obsidian vaults.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "repository": {
     "url": "https://github.com/junnnnnw00/obsidian-everywhere",
     "source": "github",
@@ -21,7 +21,7 @@
     {
       "registryType": "npm",
       "identifier": "obsidian-everywhere",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "runtimeHint": "npx",
       "runtimeArguments": [
         {
