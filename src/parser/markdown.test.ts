@@ -92,4 +92,15 @@ describe("parseNote", () => {
     expect(p.links[0]).toMatchObject({ targetRaw: "다른 한글 노트" });
     expect(p.tags.map((t) => t.tag)).toEqual(["한글태그", "프로젝트/하위"]);
   });
+
+  it("degrades to a body-only note instead of throwing when frontmatter isn't valid YAML", () => {
+    // A Templater placeholder like {{date:YYYY-[W]ww}} is valid template
+    // syntax but not valid YAML flow-mapping syntax -- must not crash the
+    // caller (fullScan has nothing above it to catch a throw).
+    const raw = "---\ndate: {{date:YYYY-MM-DD}}\nweek: {{date:YYYY-[W]ww}}\n---\n\nBody text here.";
+    expect(() => parseNote(raw)).not.toThrow();
+    const p = parseNote(raw);
+    expect(p.frontmatter).toEqual({});
+    expect(p.body).toContain("Body text here.");
+  });
 });

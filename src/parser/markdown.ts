@@ -93,7 +93,21 @@ export function toStringArray(value: unknown): string[] {
 }
 
 export function parseNote(raw: string): ParsedNote {
-  const { data, content } = matter(raw);
+  let data: unknown;
+  let content: string;
+  try {
+    ({ data, content } = matter(raw));
+  } catch (err) {
+    // A template note's placeholder syntax (e.g. Templater's
+    // `{{date:YYYY-[W]ww}}` inside frontmatter) can be invalid YAML even
+    // though it's a perfectly valid template. Indexing a note like that
+    // must degrade to "no frontmatter, whole file as body", not crash --
+    // this is called from fullScan at startup, with nothing above it to
+    // catch a throw and keep the rest of the vault indexing.
+    console.error(`[obsidian-everywhere] Skipping unparseable frontmatter: ${(err as Error).message}`);
+    data = {};
+    content = raw;
+  }
   const frontmatter = (data ?? {}) as Record<string, unknown>;
 
   const aliases = toStringArray(frontmatter.aliases ?? frontmatter.alias);
