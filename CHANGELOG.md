@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project doesn't yet follow strict semver pre-1.0.
 
+## [0.5.2] — 2026-07-27
+
+### Fixed
+
+- Every tool's input arguments are now strictly validated (`z.object(shape).strict()`) instead of silently dropping unrecognized parameters. Previously a typo'd param name (e.g. `regex_search({ paths: [...] })` instead of the real `{ folder: ... }`) produced no error at all — the call "succeeded" but silently ran with that parameter unset, returning subtly wrong (often whole-vault-scoped) results indistinguishable from a correct call. Now it returns a clear `Unrecognized key(s) in object: '...'` tool error. See DECISIONS.md D22.
+
 ## [0.5.1] — 2026-07-27
 
 ### Fixed
