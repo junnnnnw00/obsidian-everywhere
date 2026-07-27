@@ -91,7 +91,7 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 | `search_notes` | Full-text search with tag/folder filters (with a trigram fallback for CJK substring matches unicode61 alone would miss — see DECISIONS.md D9), each result annotated with link counts and tags |
 | `semantic_search` | Meaning-based search via local embeddings (`multilingual-e5-small`, no external service) — finds conceptually related notes that don't share the query's exact words |
 | `read_note` | Structured content/frontmatter/links/tags plus line pagination; optional heading-scoped read |
-| `list_notes` | Explicit folder-aware note listing with pagination |
+| `list_notes` | Explicit folder-aware note listing with pagination; optionally projects named frontmatter fields (e.g. `status`, `project`) per note |
 | `list_folder` | Immediate child folders, notes, and attachments |
 | `regex_search` | JavaScript-regex search with file, line, and excerpt |
 | `get_backlinks` | Every note linking to a given note, with the linking sentence |
@@ -116,6 +116,7 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 | `move_note` / `rename_note` / `delete_note` | Lifecycle operations with inbound-link rewriting, backlink guardrails, and recoverable trash |
 | `replace_text` / `patch_section` | Guarded exact-text and heading-scoped edits |
 | `update_frontmatter` / `remove_frontmatter_field` | Change properties without replacing the note body |
+| `bulk_update_frontmatter` / `bulk_remove_frontmatter_field` | Same, across every note in a folder (or the whole vault); dry-run first with rollback |
 | `add_tags` / `remove_tags` | Add or remove frontmatter tags on one note |
 | `rename_tag` | Rename a tag vault-wide across frontmatter and inline `#tag` text, dry-run first with rollback |
 | `bulk_replace` / `rollback_bulk_edit` | Dry-run-first folder/regex replacement with snapshots and rollback |

@@ -299,6 +299,102 @@ describe("write tools (create_note, append_to_note) — isolated writable vault 
     expect(readFileSync(path.join(tmpVault, "Bulk", "A.md"), "utf8")).toContain("remove-callout");
   });
 
+  it("bulk_update_frontmatter previews by default, only touches notes whose values actually change, and supports rollback", async () => {
+    await client.callTool({
+      name: "create_note",
+      arguments: { path: "BulkFm/Already", content: "body", frontmatter: { status: "active" } },
+    });
+    await client.callTool({
+      name: "create_note",
+      arguments: { path: "BulkFm/Stale", content: "body", frontmatter: { status: "planned" } },
+    });
+
+    const preview = textOf(
+      (await client.callTool({
+        name: "bulk_update_frontmatter",
+        arguments: { folder: "BulkFm", fields: { status: "active" } },
+      })) as any,
+    );
+    expect(preview).toContain("Dry run: would update frontmatter in 1 note(s)");
+    expect(preview).toContain("BulkFm/Stale.md");
+    expect(preview).not.toContain("BulkFm/Already.md");
+    expect(readFileSync(path.join(tmpVault, "BulkFm", "Stale.md"), "utf8")).toContain("planned");
+
+    const applied = textOf(
+      (await client.callTool({
+        name: "bulk_update_frontmatter",
+        arguments: { folder: "BulkFm", fields: { status: "active" }, dryRun: false },
+      })) as any,
+    );
+    const rollbackId = /Rollback ID: ([A-Za-z0-9-]+)/.exec(applied)?.[1];
+    expect(rollbackId).toBeTruthy();
+    expect(readFileSync(path.join(tmpVault, "BulkFm", "Stale.md"), "utf8")).toContain("active");
+
+    const rolledBack = textOf(
+      (await client.callTool({ name: "rollback_bulk_edit", arguments: { rollbackId } })) as any,
+    );
+    expect(rolledBack).toContain("Restored 1 file(s)");
+    expect(readFileSync(path.join(tmpVault, "BulkFm", "Stale.md"), "utf8")).toContain("planned");
+  });
+
+  it("bulk_remove_frontmatter_field previews by default, only touches notes carrying the field, and supports rollback", async () => {
+    await client.callTool({
+      name: "create_note",
+      arguments: { path: "BulkFmRemove/HasIt", content: "body", frontmatter: { reviewed: "2026-01-01" } },
+    });
+    await client.callTool({
+      name: "create_note",
+      arguments: { path: "BulkFmRemove/DoesNot", content: "body", frontmatter: { status: "active" } },
+    });
+
+    const preview = textOf(
+      (await client.callTool({
+        name: "bulk_remove_frontmatter_field",
+        arguments: { folder: "BulkFmRemove", field: "reviewed" },
+      })) as any,
+    );
+    expect(preview).toContain('Dry run: would remove "reviewed" from 1 note(s)');
+    expect(preview).toContain("BulkFmRemove/HasIt.md");
+    expect(readFileSync(path.join(tmpVault, "BulkFmRemove", "HasIt.md"), "utf8")).toContain("reviewed:");
+
+    const applied = textOf(
+      (await client.callTool({
+        name: "bulk_remove_frontmatter_field",
+        arguments: { folder: "BulkFmRemove", field: "reviewed", dryRun: false },
+      })) as any,
+    );
+    const rollbackId = /Rollback ID: ([A-Za-z0-9-]+)/.exec(applied)?.[1];
+    expect(rollbackId).toBeTruthy();
+    expect(readFileSync(path.join(tmpVault, "BulkFmRemove", "HasIt.md"), "utf8")).not.toContain("reviewed:");
+
+    const rolledBack = textOf(
+      (await client.callTool({ name: "rollback_bulk_edit", arguments: { rollbackId } })) as any,
+    );
+    expect(rolledBack).toContain("Restored 1 file(s)");
+    expect(readFileSync(path.join(tmpVault, "BulkFmRemove", "HasIt.md"), "utf8")).toContain("reviewed:");
+  });
+
+  it("list_notes projects requested frontmatter properties without a separate read_note per file", async () => {
+    await client.callTool({
+      name: "create_note",
+      arguments: { path: "ListProps/One", content: "body", frontmatter: { status: "active", project: "PROVE" } },
+    });
+    await client.callTool({
+      name: "create_note",
+      arguments: { path: "ListProps/Two", content: "body", frontmatter: { status: "complete" } },
+    });
+
+    const result = textOf(
+      (await client.callTool({
+        name: "list_notes",
+        arguments: { folder: "ListProps", properties: ["status", "project"] },
+      })) as any,
+    );
+    expect(result).toContain("ListProps/One.md]] — status: active, project: PROVE");
+    // Two.md has no `project` field -- projection reports it as missing rather than omitting the note.
+    expect(result).toContain("ListProps/Two.md]] — status: complete, project: —");
+  });
+
   it("add_tags adds new tags, dedupes against existing ones, and consolidates a legacy singular `tag` key", async () => {
     await client.callTool({
       name: "create_note",

@@ -115,12 +115,18 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
     {
       title: "List Notes",
       description:
-        "List note paths explicitly, optionally scoped to a folder, with pagination. Use this instead of an empty full-text search when enumerating files.",
+        "List note paths explicitly, optionally scoped to a folder, with pagination. Use this instead of an empty full-text search when enumerating files. Pass `properties` to project specific frontmatter fields (e.g. status, project) alongside each note without reading every note individually.",
       inputSchema: strictSchema({
         folder: z.string().optional().describe("Vault-relative folder. Omit for the vault root."),
         recursive: z.boolean().optional().describe("Include nested folders (default true)."),
         offset: z.number().int().nonnegative().optional().describe("Zero-based result offset."),
         limit: z.number().int().positive().max(500).optional().describe("Max notes (default 100)."),
+        properties: z
+          .array(z.string().min(1))
+          .optional()
+          .describe(
+            "Frontmatter field names to include per note, e.g. ['status', 'project']. Missing fields are null.",
+          ),
       }),
       annotations: READ_ONLY,
     },
@@ -570,6 +576,52 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         annotations: IDEMPOTENT_WRITE,
       },
       async (args) => textResult(mutations.removeFrontmatterField(engine, args)),
+    );
+
+    server.registerTool(
+      "bulk_update_frontmatter",
+      {
+        title: "Bulk Update Frontmatter",
+        description:
+          "Merge the same frontmatter fields into every note under a folder (or the whole vault). Only notes where a value actually changes are touched. Defaults to dry-run, enforces maxFiles, and creates a rollback snapshot (restorable via rollback_bulk_edit) when applied.",
+        inputSchema: strictSchema({
+          fields: z.record(z.string(), z.unknown()).describe("Fields to add or replace on every matching note."),
+          folder: z.string().optional().describe("Optional vault-relative folder scope. Omit for the whole vault."),
+          dryRun: z.boolean().optional().describe("Preview only (default true). Set false to apply."),
+          maxFiles: z
+            .number()
+            .int()
+            .positive()
+            .max(1000)
+            .optional()
+            .describe("Abort above this changed-file count (default 100)."),
+        }),
+        annotations: DESTRUCTIVE_WRITE,
+      },
+      async (args) => textResult(mutations.bulkUpdateFrontmatter(engine, args)),
+    );
+
+    server.registerTool(
+      "bulk_remove_frontmatter_field",
+      {
+        title: "Bulk Remove Frontmatter Field",
+        description:
+          "Remove exactly one frontmatter field from every note under a folder (or the whole vault) that carries it. Defaults to dry-run, enforces maxFiles, and creates a rollback snapshot (restorable via rollback_bulk_edit) when applied.",
+        inputSchema: strictSchema({
+          field: z.string().min(1).describe("Top-level frontmatter field name to remove."),
+          folder: z.string().optional().describe("Optional vault-relative folder scope. Omit for the whole vault."),
+          dryRun: z.boolean().optional().describe("Preview only (default true). Set false to apply."),
+          maxFiles: z
+            .number()
+            .int()
+            .positive()
+            .max(1000)
+            .optional()
+            .describe("Abort above this changed-file count (default 100)."),
+        }),
+        annotations: DESTRUCTIVE_WRITE,
+      },
+      async (args) => textResult(mutations.bulkRemoveFrontmatterField(engine, args)),
     );
 
     server.registerTool(

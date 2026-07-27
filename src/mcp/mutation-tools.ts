@@ -147,6 +147,98 @@ export function removeFrontmatterField(engine: VaultEngine, args: { path: string
   return `Removed frontmatter field "${args.field}" from ${file.path}.`;
 }
 
+export interface BulkUpdateFrontmatterArgs {
+  fields: Record<string, unknown>;
+  folder?: string;
+  dryRun?: boolean;
+  maxFiles?: number;
+}
+
+/** Vault- or folder-wide equivalent of updateFrontmatter, applied one document at a time. Only notes where the merge actually changes a value are touched. */
+export function bulkUpdateFrontmatter(engine: VaultEngine, args: BulkUpdateFrontmatterArgs): string {
+  if (!args.fields || Object.keys(args.fields).length === 0) return "Error: fields must not be empty.";
+  const folder = args.folder?.replace(/^\/+|\/+$/g, "");
+  const candidates = engine.db
+    .getAllFiles()
+    .filter((file) => file.is_markdown === 1 && (!folder || file.path.startsWith(`${folder}/`)));
+
+  const changes: { path: string; before: string; after: string; fields: string[] }[] = [];
+  for (const file of candidates) {
+    const before = readFileSync(resolveExistingVaultPath(engine.vaultDir, file.path), "utf8");
+    const parsed = parseNote(before);
+    const changedFields = Object.keys(args.fields).filter(
+      (key) => JSON.stringify(parsed.frontmatter[key]) !== JSON.stringify(args.fields[key]),
+    );
+    if (changedFields.length === 0) continue;
+    changes.push({
+      path: file.path,
+      before,
+      after: serializeNote({ ...parsed.frontmatter, ...args.fields }, parsed.body),
+      fields: changedFields,
+    });
+  }
+  if (changes.length === 0) {
+    return `No notes under ${folder ?? "the vault"} needed a frontmatter update. Nothing was written.`;
+  }
+
+  const summary = changes.map((c) => `- ${c.path}: ${c.fields.join(", ")}`).join("\n");
+  if (args.dryRun ?? true) {
+    return `Dry run: would update frontmatter in ${changes.length} note(s).\n\n${summary}`;
+  }
+  const maxFiles = args.maxFiles ?? 100;
+  if (changes.length > maxFiles) {
+    return `Error: ${changes.length} files would change, exceeding maxFiles=${maxFiles}. Nothing was written.`;
+  }
+
+  const result = applyRollbackableChanges(engine, changes);
+  if ("error" in result) return `Error: bulk frontmatter update failed and rollback was attempted: ${result.error}`;
+  return `Updated frontmatter in ${changes.length} note(s). Rollback ID: ${result.id}\n\n${summary}`;
+}
+
+export interface BulkRemoveFrontmatterFieldArgs {
+  field: string;
+  folder?: string;
+  dryRun?: boolean;
+  maxFiles?: number;
+}
+
+/** Vault- or folder-wide equivalent of removeFrontmatterField. Only notes that actually carry the field are touched. */
+export function bulkRemoveFrontmatterField(engine: VaultEngine, args: BulkRemoveFrontmatterFieldArgs): string {
+  if (!args.field.trim()) return "Error: field must not be empty.";
+  const folder = args.folder?.replace(/^\/+|\/+$/g, "");
+  const candidates = engine.db
+    .getAllFiles()
+    .filter((file) => file.is_markdown === 1 && (!folder || file.path.startsWith(`${folder}/`)));
+
+  const changes: { path: string; before: string; after: string }[] = [];
+  for (const file of candidates) {
+    const before = readFileSync(resolveExistingVaultPath(engine.vaultDir, file.path), "utf8");
+    const parsed = parseNote(before);
+    if (!(args.field in parsed.frontmatter)) continue;
+    const updated = { ...parsed.frontmatter };
+    delete updated[args.field];
+    changes.push({ path: file.path, before, after: serializeNote(updated, parsed.body) });
+  }
+  if (changes.length === 0) {
+    return `No notes under ${folder ?? "the vault"} have frontmatter field "${args.field}". Nothing was written.`;
+  }
+
+  const summary = changes.map((c) => `- ${c.path}`).join("\n");
+  if (args.dryRun ?? true) {
+    return `Dry run: would remove "${args.field}" from ${changes.length} note(s).\n\n${summary}`;
+  }
+  const maxFiles = args.maxFiles ?? 100;
+  if (changes.length > maxFiles) {
+    return `Error: ${changes.length} files would change, exceeding maxFiles=${maxFiles}. Nothing was written.`;
+  }
+
+  const result = applyRollbackableChanges(engine, changes);
+  if ("error" in result) {
+    return `Error: bulk frontmatter field removal failed and rollback was attempted: ${result.error}`;
+  }
+  return `Removed "${args.field}" from ${changes.length} note(s). Rollback ID: ${result.id}\n\n${summary}`;
+}
+
 function existingFrontmatterTags(frontmatter: Record<string, unknown>): string[] {
   return toStringArray(frontmatter.tags ?? frontmatter.tag);
 }

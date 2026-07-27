@@ -151,6 +151,14 @@ export interface ListNotesArgs {
   recursive?: boolean;
   offset?: number;
   limit?: number;
+  properties?: string[];
+}
+
+function formatPropertyValue(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (Array.isArray(value)) return value.length ? value.map((v) => String(v)).join(", ") : "—";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
 }
 
 export function listFolder(engine: VaultEngine, args: { folder?: string }): string {
@@ -183,7 +191,13 @@ export function listFolder(engine: VaultEngine, args: { folder?: string }): stri
 }
 
 export interface NoteListData {
-  notes: { path: string; title: string | null; mtime: string; tags: string[] }[];
+  notes: {
+    path: string;
+    title: string | null;
+    mtime: string;
+    tags: string[];
+    properties?: Record<string, unknown>;
+  }[];
   folders: string[];
   pagination: { offset: number; limit: number; total: number; hasMore: boolean; nextOffset: number | null };
 }
@@ -208,13 +222,28 @@ export function listNotesData(engine: VaultEngine, args: ListNotesArgs): NoteLis
   const limit = args.limit ?? 100;
   const page = matching.slice(offset, offset + limit);
   const nextOffset = offset + page.length;
+  const properties = args.properties?.filter((key) => key.trim().length > 0);
   return {
-    notes: page.map((file) => ({
-      path: file.path,
-      title: file.title,
-      mtime: new Date(file.mtime).toISOString(),
-      tags: engine.db.getTagsForFile(file.id).map((tag) => tag.tag),
-    })),
+    notes: page.map((file) => {
+      const note: NoteListData["notes"][number] = {
+        path: file.path,
+        title: file.title,
+        mtime: new Date(file.mtime).toISOString(),
+        tags: engine.db.getTagsForFile(file.id).map((tag) => tag.tag),
+      };
+      if (properties?.length) {
+        let frontmatter: Record<string, unknown> = {};
+        if (file.frontmatter_json) {
+          try {
+            frontmatter = JSON.parse(file.frontmatter_json) as Record<string, unknown>;
+          } catch {
+            frontmatter = {};
+          }
+        }
+        note.properties = Object.fromEntries(properties.map((key) => [key, frontmatter[key] ?? null]));
+      }
+      return note;
+    }),
     folders: [...folders].sort(),
     pagination: {
       offset,
@@ -233,7 +262,16 @@ export function listNotes(engine: VaultEngine, args: ListNotesArgs): string {
     "",
     ...(data.folders.length ? ["## Folders", ...data.folders.map((folder) => `- ${folder}/`), ""] : []),
     "## Notes",
-    ...(data.notes.length ? data.notes.map((note) => `- [[${note.path}]]`) : ["_none_"]),
+    ...(data.notes.length
+      ? data.notes.map((note) => {
+          const propsStr = note.properties
+            ? ` — ${Object.entries(note.properties)
+                .map(([key, value]) => `${key}: ${formatPropertyValue(value)}`)
+                .join(", ")}`
+            : "";
+          return `- [[${note.path}]]${propsStr}`;
+        })
+      : ["_none_"]),
   ];
   if (data.pagination.hasMore) lines.push("", `Continue with offset ${data.pagination.nextOffset}.`);
   return lines.join("\n");
