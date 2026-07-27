@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project doesn't yet follow strict semver pre-1.0.
 
+## [0.6.0] — 2026-07-27
+
+### Added
+
+- `bulk_update_frontmatter` / `bulk_remove_frontmatter_field` — folder- or vault-wide frontmatter edits in one call, mirroring `bulk_replace`'s dry-run default, `maxFiles` guard, and rollback snapshot (restorable via the existing `rollback_bulk_edit`). Only notes where a value actually changes are touched.
+- `list_notes` gained an optional `properties: string[]` to project named frontmatter fields alongside each listed note (from the already-indexed data, no extra reads) — e.g. `properties: ["status", "project"]` to audit consistency across a folder without a `read_note` per file.
+- See DECISIONS.md D23 for the rationale — both gaps were found live during a real vault reorganization, where removing one redundant field from ~90 notes required 88 individual tool calls.
+
 ## [0.5.2] — 2026-07-27
 
 ### Fixed
