@@ -3,7 +3,7 @@ import matter from "gray-matter";
 import type { FileRow } from "../index/db.js";
 import { parseNote } from "../parser/markdown.js";
 import { resolveLink } from "../vault/resolve.js";
-import { resolveExistingVaultPath, toSafeVaultRelPath } from "../vault/paths.js";
+import { basenameNoExt, resolveExistingVaultPath, toSafeVaultRelPath } from "../vault/paths.js";
 import { writeFileAtomic } from "../vault/write.js";
 import type { VaultEngine } from "../vault-engine.js";
 import { estimateTokens, extractSection, firstParagraph, formatFrontmatter, truncateToTokens } from "./format.js";
@@ -667,6 +667,79 @@ export function createNote(engine: VaultEngine, args: CreateNoteArgs): string {
   }
 
   return `Created ${relPath}.\n\n${readNote(engine, { path: relPath })}`;
+}
+
+const DATE_FORMAT_TOKEN_RE = /YYYY|YY|MM|DD|HH|mm|ss/g;
+
+/** A small, dependency-free subset of moment.js format tokens -- enough for the day/time formats real daily-note templates use, without pulling in moment.js for this alone. */
+function formatDateToken(date: Date, format: string): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const tokens: Record<string, string> = {
+    YYYY: String(date.getFullYear()),
+    YY: String(date.getFullYear()).slice(-2),
+    MM: pad(date.getMonth() + 1),
+    DD: pad(date.getDate()),
+    HH: pad(date.getHours()),
+    mm: pad(date.getMinutes()),
+    ss: pad(date.getSeconds()),
+  };
+  return format.replace(DATE_FORMAT_TOKEN_RE, (m) => tokens[m] ?? m);
+}
+
+/**
+ * Obsidian's core Templates plugin variable set -- {{date}}, {{date:FORMAT}},
+ * {{time}}, {{time:FORMAT}}, {{title}} -- applied to the raw template text
+ * before it's ever parsed as frontmatter+body, matching how Obsidian itself
+ * renders a template. Templater-only syntax (<% tp... %>) isn't supported;
+ * it's passed through as literal text rather than guessed at.
+ */
+function renderTemplate(raw: string, title: string, now: Date): string {
+  return raw
+    .replace(/\{\{date(?::([^}]+))?\}\}/g, (_m, fmt: string | undefined) => formatDateToken(now, fmt ?? "YYYY-MM-DD"))
+    .replace(/\{\{time(?::([^}]+))?\}\}/g, (_m, fmt: string | undefined) => formatDateToken(now, fmt ?? "HH:mm"))
+    .replaceAll("{{title}}", title);
+}
+
+export interface ApplyTemplateArgs {
+  template: string;
+  path: string;
+  frontmatter?: Record<string, unknown>;
+  overwrite?: boolean;
+}
+
+export function applyTemplate(engine: VaultEngine, args: ApplyTemplateArgs): string {
+  const templateFile = resolveNoteArg(engine, args.template);
+  if (!templateFile) return `Error: template not found: ${args.template}`;
+
+  let relPath: string;
+  let absPath: string;
+  try {
+    relPath = toSafeVaultRelPath(args.path);
+    relPath = engine.db.getFileByPath(relPath)?.path ?? relPath;
+    absPath = resolveExistingVaultPath(engine.vaultDir, relPath);
+  } catch (err) {
+    return `Error: ${(err as Error).message}`;
+  }
+  if ((existsSync(absPath) || engine.db.getFileByPath(relPath)) && !args.overwrite) {
+    return `Error: ${relPath} already exists. Pass overwrite: true to replace it, or use append_to_note to add to it.`;
+  }
+
+  const templateRaw = readFileSync(resolveExistingVaultPath(engine.vaultDir, templateFile.path), "utf8");
+  const rendered = renderTemplate(templateRaw, basenameNoExt(relPath), new Date());
+
+  let fileText = rendered;
+  if (args.frontmatter && Object.keys(args.frontmatter).length > 0) {
+    const parsed = parseNote(rendered);
+    fileText = matter.stringify(parsed.body, { ...parsed.frontmatter, ...args.frontmatter });
+  }
+
+  try {
+    writeFileAtomic(absPath, fileText);
+    engine.indexFileNow(relPath);
+  } catch (err) {
+    return `Error: ${(err as Error).message}`;
+  }
+  return `Created ${relPath} from template ${templateFile.path}.\n\n${readNote(engine, { path: relPath })}`;
 }
 
 export interface AppendToNoteArgs {

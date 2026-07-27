@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
-import { parseNote } from "../parser/markdown.js";
+import { parseNote, TAG_RE, toStringArray } from "../parser/markdown.js";
 import { resolveLink, type ResolverIndex } from "../vault/resolve.js";
 import { resolveExistingVaultPath, resolveWithinVault, toSafeVaultRelPath } from "../vault/paths.js";
 import { filesystemErrorMessage, writeFileAtomic } from "../vault/write.js";
@@ -145,6 +145,79 @@ export function removeFrontmatterField(engine: VaultEngine, args: { path: string
     return `Error: ${(err as Error).message}`;
   }
   return `Removed frontmatter field "${args.field}" from ${file.path}.`;
+}
+
+function existingFrontmatterTags(frontmatter: Record<string, unknown>): string[] {
+  return toStringArray(frontmatter.tags ?? frontmatter.tag);
+}
+
+/** Sets `tags` from `existing`, dropping the legacy singular `tag` key so a note converges on Obsidian's canonical plural array form once a tag tool touches it. */
+function withFrontmatterTags(frontmatter: Record<string, unknown>, tags: string[]): Record<string, unknown> {
+  const updated: Record<string, unknown> = { ...frontmatter, tags };
+  delete updated.tag;
+  return updated;
+}
+
+export interface AddTagsArgs {
+  path: string;
+  tags: string[];
+}
+
+export function addTags(engine: VaultEngine, args: AddTagsArgs): string {
+  const file = resolveNoteArg(engine, args.path);
+  if (!file) return `Error: note not found: ${args.path}`;
+  const incoming = toStringArray(args.tags);
+  if (incoming.length === 0) return "Error: tags must not be empty.";
+
+  const raw = readFileSync(resolveExistingVaultPath(engine.vaultDir, file.path), "utf8");
+  const parsed = parseNote(raw);
+  const existing = existingFrontmatterTags(parsed.frontmatter);
+  const merged = [...existing];
+  const added: string[] = [];
+  for (const tag of incoming) {
+    if (!merged.includes(tag)) {
+      merged.push(tag);
+      added.push(tag);
+    }
+  }
+  if (added.length === 0) {
+    return `No new tags to add; ${file.path} already has all of: ${incoming.join(", ")}.`;
+  }
+
+  try {
+    saveParsedNote(engine, file.path, withFrontmatterTags(parsed.frontmatter, merged), parsed.body);
+  } catch (err) {
+    return `Error: ${(err as Error).message}`;
+  }
+  return `Added tag(s) to ${file.path}: ${added.join(", ")}.`;
+}
+
+export interface RemoveTagsArgs {
+  path: string;
+  tags: string[];
+}
+
+export function removeTags(engine: VaultEngine, args: RemoveTagsArgs): string {
+  const file = resolveNoteArg(engine, args.path);
+  if (!file) return `Error: note not found: ${args.path}`;
+  const toRemove = new Set(toStringArray(args.tags));
+  if (toRemove.size === 0) return "Error: tags must not be empty.";
+
+  const raw = readFileSync(resolveExistingVaultPath(engine.vaultDir, file.path), "utf8");
+  const parsed = parseNote(raw);
+  const existing = existingFrontmatterTags(parsed.frontmatter);
+  const removed = existing.filter((t) => toRemove.has(t));
+  if (removed.length === 0) {
+    return `Error: none of the requested tag(s) are on ${file.path}. Nothing was written.`;
+  }
+  const remaining = existing.filter((t) => !toRemove.has(t));
+
+  try {
+    saveParsedNote(engine, file.path, withFrontmatterTags(parsed.frontmatter, remaining), parsed.body);
+  } catch (err) {
+    return `Error: ${(err as Error).message}`;
+  }
+  return `Removed tag(s) from ${file.path}: ${removed.join(", ")}.`;
 }
 
 function stripMd(relPath: string): string {
@@ -364,6 +437,36 @@ export interface BulkReplaceArgs {
   maxFiles?: number;
 }
 
+/** Shared by bulkReplace and renameTag: write a rollback manifest, apply every change, and best-effort revert everything on failure. */
+function applyRollbackableChanges(
+  engine: VaultEngine,
+  changes: { path: string; before: string; after: string }[],
+): { id: string } | { error: string } {
+  const id = `${new Date().toISOString().replace(/[:.]/g, "-")}-${Math.random().toString(16).slice(2, 10)}`;
+  const manifest: RollbackManifest = {
+    id,
+    createdAt: new Date().toISOString(),
+    files: changes.map((change) => ({ path: change.path, content: change.before })),
+  };
+  const manifestPath = path.join(rollbackDir(engine), `${id}.json`);
+  try {
+    writeFileAtomic(manifestPath, JSON.stringify(manifest));
+    for (const change of changes) writeFileAtomic(resolveExistingVaultPath(engine.vaultDir, change.path), change.after);
+    engine.refreshNow();
+    return { id };
+  } catch (err) {
+    for (const change of changes) {
+      try {
+        writeFileAtomic(resolveExistingVaultPath(engine.vaultDir, change.path), change.before);
+      } catch {
+        // Continue restoring the remaining files.
+      }
+    }
+    engine.refreshNow();
+    return { error: filesystemErrorMessage(err) };
+  }
+}
+
 export function bulkReplace(engine: VaultEngine, args: BulkReplaceArgs): string {
   let regex: RegExp | null;
   try {
@@ -390,29 +493,128 @@ export function bulkReplace(engine: VaultEngine, args: BulkReplaceArgs): string 
     return `Error: ${changes.length} files would change, exceeding maxFiles=${maxFiles}. Nothing was written.`;
   }
 
-  const id = `${new Date().toISOString().replace(/[:.]/g, "-")}-${Math.random().toString(16).slice(2, 10)}`;
-  const manifest: RollbackManifest = {
-    id,
-    createdAt: new Date().toISOString(),
-    files: changes.map((change) => ({ path: change.path, content: change.before })),
-  };
-  const manifestPath = path.join(rollbackDir(engine), `${id}.json`);
-  try {
-    writeFileAtomic(manifestPath, JSON.stringify(manifest));
-    for (const change of changes) writeFileAtomic(resolveExistingVaultPath(engine.vaultDir, change.path), change.after);
-    engine.refreshNow();
-  } catch (err) {
-    for (const change of changes) {
-      try {
-        writeFileAtomic(resolveExistingVaultPath(engine.vaultDir, change.path), change.before);
-      } catch {
-        // Continue restoring the remaining files.
-      }
+  const result = applyRollbackableChanges(engine, changes);
+  if ("error" in result) return `Error: bulk edit failed and rollback was attempted: ${result.error}`;
+  return `Applied ${total} replacement(s) in ${changes.length} file(s). Rollback ID: ${result.id}\n\n${summary}`;
+}
+
+function normalizeTagName(raw: string): string {
+  return raw.trim().replace(/^#/, "").replace(/\/+$/, "");
+}
+
+function tagOrNestedMatch(tag: string, from: string, includeNested: boolean): boolean {
+  return tag === from || (includeNested && tag.startsWith(`${from}/`));
+}
+
+function renameTagValue(tag: string, from: string, to: string): string {
+  return tag === from ? to : `${to}${tag.slice(from.length)}`;
+}
+
+/** Rewrites inline `#tag` occurrences line by line, skipping fenced code blocks and masking inline code, the same way rewriteLinks handles wikilinks. */
+function renameInlineTags(
+  body: string,
+  from: string,
+  to: string,
+  includeNested: boolean,
+): { text: string; count: number } {
+  const newline = body.includes("\r\n") ? "\r\n" : "\n";
+  let count = 0;
+  let inFence = false;
+  const lines = body.split(/\r\n|\n/).map((line) => {
+    if (/^\s*(```|~~~)/.test(line)) {
+      inFence = !inFence;
+      return line;
     }
-    engine.refreshNow();
-    return `Error: bulk edit failed and rollback was attempted: ${filesystemErrorMessage(err)}`;
+    if (inFence) return line;
+
+    const masked = maskInlineCode(line);
+    const re = new RegExp(TAG_RE.source, "gu");
+    const replacements: { start: number; end: number; replacement: string }[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(masked)) !== null) {
+      const prefix = match[1] ?? "";
+      const tagText = (match[2] ?? "").replace(/\/+$/, "");
+      if (!tagOrNestedMatch(tagText, from, includeNested)) continue;
+      replacements.push({
+        start: match.index + prefix.length,
+        end: match.index + match[0].length,
+        replacement: `#${renameTagValue(tagText, from, to)}`,
+      });
+    }
+    if (replacements.length === 0) return line;
+    let updated = line;
+    for (let i = replacements.length - 1; i >= 0; i--) {
+      const r = replacements[i]!;
+      updated = `${updated.slice(0, r.start)}${r.replacement}${updated.slice(r.end)}`;
+      count++;
+    }
+    return updated;
+  });
+  return { text: lines.join(newline), count };
+}
+
+export interface RenameTagArgs {
+  from: string;
+  to: string;
+  includeNested?: boolean;
+  dryRun?: boolean;
+}
+
+/** Vault-wide tag rename across both frontmatter `tags` arrays and inline `#tag` text. */
+export function renameTag(engine: VaultEngine, args: RenameTagArgs): string {
+  const from = normalizeTagName(args.from);
+  const to = normalizeTagName(args.to);
+  if (!from) return "Error: from must not be empty.";
+  if (!to) return "Error: to must not be empty.";
+  if (from === to) return "Error: from and to are the same tag.";
+  const includeNested = args.includeNested ?? false;
+
+  // Fetch a broad (prefix-matched) candidate set regardless of includeNested,
+  // then let tagOrNestedMatch apply the exact slash-boundary semantics below
+  // -- getNotesByTag's own LIKE-based includeNested is a looser prefix match
+  // (e.g. "project" would also match "projectplan"), so this candidate query
+  // is deliberately a superset rather than the source of truth.
+  const candidates = engine.db.getNotesByTag(from, true).filter((file) => file.is_markdown === 1);
+  if (candidates.length === 0) return `No notes found with tag "${from}". Nothing was written.`;
+
+  const changes: { path: string; before: string; after: string; frontmatterChanged: boolean; inlineCount: number }[] =
+    [];
+  for (const file of candidates) {
+    const before = readFileSync(resolveExistingVaultPath(engine.vaultDir, file.path), "utf8");
+    const parsed = parseNote(before);
+    const existingTags = existingFrontmatterTags(parsed.frontmatter);
+    const newTags = existingTags.map((t) =>
+      tagOrNestedMatch(t, from, includeNested) ? renameTagValue(t, from, to) : t,
+    );
+    const frontmatterChanged = newTags.some((t, i) => t !== existingTags[i]);
+    const { text: newBody, count: inlineCount } = renameInlineTags(parsed.body, from, to, includeNested);
+    if (!frontmatterChanged && inlineCount === 0) continue;
+    const newFrontmatter = frontmatterChanged ? withFrontmatterTags(parsed.frontmatter, newTags) : parsed.frontmatter;
+    changes.push({
+      path: file.path,
+      before,
+      after: serializeNote(newFrontmatter, newBody),
+      frontmatterChanged,
+      inlineCount,
+    });
   }
-  return `Applied ${total} replacement(s) in ${changes.length} file(s). Rollback ID: ${id}\n\n${summary}`;
+  if (changes.length === 0) return `No occurrences of tag "${from}" found to rename. Nothing was written.`;
+
+  const summary = changes
+    .map((c) => {
+      const parts: string[] = [];
+      if (c.frontmatterChanged) parts.push("frontmatter");
+      if (c.inlineCount > 0) parts.push(`${c.inlineCount} inline`);
+      return `- ${c.path}: ${parts.join(", ")}`;
+    })
+    .join("\n");
+  if (args.dryRun ?? true) {
+    return `Dry run: would rename "${from}" -> "${to}" in ${changes.length} note(s).\n\n${summary}`;
+  }
+
+  const result = applyRollbackableChanges(engine, changes);
+  if ("error" in result) return `Error: tag rename failed and rollback was attempted: ${result.error}`;
+  return `Renamed "${from}" -> "${to}" in ${changes.length} note(s). Rollback ID: ${result.id}\n\n${summary}`;
 }
 
 export function rollbackBulkEdit(engine: VaultEngine, args: { rollbackId: string }): string {

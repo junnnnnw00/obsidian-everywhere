@@ -299,6 +299,210 @@ describe("write tools (create_note, append_to_note) — isolated writable vault 
     expect(readFileSync(path.join(tmpVault, "Bulk", "A.md"), "utf8")).toContain("remove-callout");
   });
 
+  it("add_tags adds new tags, dedupes against existing ones, and consolidates a legacy singular `tag` key", async () => {
+    await client.callTool({
+      name: "create_note",
+      arguments: { path: "TagTest/Note1", content: "body", frontmatter: { tag: "existing" } },
+    });
+    const result = textOf(
+      (await client.callTool({
+        name: "add_tags",
+        arguments: { path: "TagTest/Note1", tags: ["existing", "#new-one", "another"] },
+      })) as any,
+    );
+    expect(result).toContain("Added tag(s) to TagTest/Note1.md: new-one, another");
+    const onDisk = readFileSync(path.join(tmpVault, "TagTest", "Note1.md"), "utf8");
+    expect(onDisk).toContain("tags:");
+    expect(onDisk).not.toMatch(/^tag:/m);
+    expect(onDisk).toContain("- existing");
+    expect(onDisk).toContain("- new-one");
+    expect(onDisk).toContain("- another");
+  });
+
+  it("add_tags reports no-op when every tag is already present", async () => {
+    await client.callTool({
+      name: "create_note",
+      arguments: { path: "TagTest/Note2", content: "body", frontmatter: { tags: ["dup"] } },
+    });
+    const result = textOf(
+      (await client.callTool({ name: "add_tags", arguments: { path: "TagTest/Note2", tags: ["dup"] } })) as any,
+    );
+    expect(result).toContain("No new tags to add");
+  });
+
+  it("remove_tags removes matching tags and errors if none are present", async () => {
+    await client.callTool({
+      name: "create_note",
+      arguments: { path: "TagTest/Note3", content: "body", frontmatter: { tags: ["keep", "drop"] } },
+    });
+    const result = textOf(
+      (await client.callTool({ name: "remove_tags", arguments: { path: "TagTest/Note3", tags: ["drop"] } })) as any,
+    );
+    expect(result).toContain("Removed tag(s) from TagTest/Note3.md: drop");
+    const onDisk = readFileSync(path.join(tmpVault, "TagTest", "Note3.md"), "utf8");
+    expect(onDisk).toContain("- keep");
+    expect(onDisk).not.toContain("- drop");
+
+    const noop = textOf(
+      (await client.callTool({ name: "remove_tags", arguments: { path: "TagTest/Note3", tags: ["drop"] } })) as any,
+    );
+    expect(noop).toContain("none of the requested tag(s)");
+  });
+
+  it("rename_tag previews by default, then renames frontmatter and inline tags vault-wide with rollback", async () => {
+    await client.callTool({
+      name: "create_note",
+      arguments: { path: "TagTest/Rename1", content: "See #oldtag in body.", frontmatter: { tags: ["oldtag"] } },
+    });
+    await client.callTool({
+      name: "create_note",
+      arguments: {
+        path: "TagTest/Rename2",
+        content: "Nested #oldtag/child here.",
+        frontmatter: { tags: ["oldtag/child"] },
+      },
+    });
+
+    const preview = textOf(
+      (await client.callTool({ name: "rename_tag", arguments: { from: "oldtag", to: "newtag" } })) as any,
+    );
+    expect(preview).toContain('Dry run: would rename "oldtag" -> "newtag"');
+    expect(readFileSync(path.join(tmpVault, "TagTest", "Rename1.md"), "utf8")).toContain("#oldtag");
+
+    const applied = textOf(
+      (await client.callTool({
+        name: "rename_tag",
+        arguments: { from: "oldtag", to: "newtag", dryRun: false },
+      })) as any,
+    );
+    const rollbackId = /Rollback ID: ([A-Za-z0-9-]+)/.exec(applied)?.[1];
+    expect(rollbackId).toBeTruthy();
+    const rename1 = readFileSync(path.join(tmpVault, "TagTest", "Rename1.md"), "utf8");
+    expect(rename1).toContain("#newtag");
+    expect(rename1).not.toContain("#oldtag");
+    expect(rename1).toContain("- newtag");
+    // includeNested defaults to false: "oldtag/child" is untouched.
+    expect(readFileSync(path.join(tmpVault, "TagTest", "Rename2.md"), "utf8")).toContain("#oldtag/child");
+
+    const rolledBack = textOf(
+      (await client.callTool({ name: "rollback_bulk_edit", arguments: { rollbackId } })) as any,
+    );
+    expect(rolledBack).toContain("Restored");
+    expect(readFileSync(path.join(tmpVault, "TagTest", "Rename1.md"), "utf8")).toContain("#oldtag");
+  });
+
+  it("rename_tag with includeNested renames child tags too", async () => {
+    await client.callTool({
+      name: "create_note",
+      arguments: { path: "TagTest/Rename3", content: "Nested #proj/child.", frontmatter: { tags: ["proj/child"] } },
+    });
+    const applied = textOf(
+      (await client.callTool({
+        name: "rename_tag",
+        arguments: { from: "proj", to: "workproj", includeNested: true, dryRun: false },
+      })) as any,
+    );
+    expect(applied).toMatch(/^Renamed "proj" -> "workproj"/);
+    const onDisk = readFileSync(path.join(tmpVault, "TagTest", "Rename3.md"), "utf8");
+    expect(onDisk).toContain("#workproj/child");
+    expect(onDisk).toContain("- workproj/child");
+  });
+
+  it("rename_tag ignores #tag-like text inside inline code and fenced code blocks", async () => {
+    await client.callTool({
+      name: "create_note",
+      arguments: {
+        path: "TagTest/Rename4",
+        content: "Real #codetag here.\n\n`#codetag in code`\n\n```\n#codetag\n```",
+      },
+    });
+    const applied = textOf(
+      (await client.callTool({
+        name: "rename_tag",
+        arguments: { from: "codetag", to: "renamedtag", dryRun: false },
+      })) as any,
+    );
+    expect(applied).toContain("1 inline");
+    const onDisk = readFileSync(path.join(tmpVault, "TagTest", "Rename4.md"), "utf8");
+    expect(onDisk).toContain("Real #renamedtag here.");
+    expect(onDisk).toContain("`#codetag in code`");
+    expect(onDisk).toContain("```\n#codetag\n```");
+  });
+
+  it("apply_template substitutes {{date}}, {{time}}, {{title}} and writes a new note", async () => {
+    await client.callTool({
+      name: "create_note",
+      arguments: {
+        path: "Templates/Daily",
+        content: "# {{title}}\n\nCreated {{date}} at {{time}}.\nCustom format: {{date:YYYY/MM/DD}}.",
+        frontmatter: { type: "daily" },
+      },
+    });
+    const result = textOf(
+      (await client.callTool({
+        name: "apply_template",
+        arguments: { template: "Templates/Daily", path: "Daily/2026-01-01" },
+      })) as any,
+    );
+    expect(result).toContain("Created Daily/2026-01-01.md from template Templates/Daily.md");
+
+    const onDisk = readFileSync(path.join(tmpVault, "Daily", "2026-01-01.md"), "utf8");
+    expect(onDisk).toContain("# 2026-01-01");
+    expect(onDisk).toMatch(/Created \d{4}-\d{2}-\d{2} at \d{2}:\d{2}\./);
+    expect(onDisk).toMatch(/Custom format: \d{4}\/\d{2}\/\d{2}\./);
+    expect(onDisk).not.toContain("{{");
+    expect(onDisk).toContain("type: daily");
+  });
+
+  it("apply_template merges extra frontmatter on top of the template's own frontmatter", async () => {
+    await client.callTool({
+      name: "apply_template",
+      arguments: {
+        template: "Templates/Daily",
+        path: "Daily/2026-02-02",
+        frontmatter: { tags: ["extra"] },
+      },
+    });
+    const onDisk = readFileSync(path.join(tmpVault, "Daily", "2026-02-02.md"), "utf8");
+    expect(onDisk).toContain("type: daily");
+    expect(onDisk).toContain("- extra");
+  });
+
+  it("apply_template refuses to overwrite an existing note without overwrite: true", async () => {
+    const result = textOf(
+      (await client.callTool({
+        name: "apply_template",
+        arguments: { template: "Templates/Daily", path: "Daily/2026-01-01" },
+      })) as any,
+    );
+    expect(result).toContain("already exists");
+  });
+
+  it("apply_template reports an error for a nonexistent template", async () => {
+    const result = textOf(
+      (await client.callTool({
+        name: "apply_template",
+        arguments: { template: "Templates/DoesNotExist", path: "Daily/2026-03-03" },
+      })) as any,
+    );
+    expect(result).toContain("template not found");
+  });
+
+  it("apply_template leaves Templater-only <% %> syntax untouched", async () => {
+    await client.callTool({
+      name: "create_note",
+      arguments: { path: "Templates/Templater", content: "{{title}} <% tp.file.title %>" },
+    });
+    const result = textOf(
+      (await client.callTool({
+        name: "apply_template",
+        arguments: { template: "Templates/Templater", path: "Daily/2026-04-04" },
+      })) as any,
+    );
+    expect(result).toContain("Created Daily/2026-04-04.md");
+    expect(readFileSync(path.join(tmpVault, "Daily", "2026-04-04.md"), "utf8")).toContain("<% tp.file.title %>");
+  });
+
   it("reads and updates persisted Obsidian template/hotkey settings", async () => {
     const folderResult = textOf(
       (await client.callTool({ name: "set_templates_folder", arguments: { folder: "Templates" } })) as any,

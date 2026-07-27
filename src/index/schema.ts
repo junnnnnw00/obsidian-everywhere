@@ -72,4 +72,16 @@ CREATE TABLE IF NOT EXISTS meta (
 CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
   path, title, content, tokenize='unicode61'
 );
+
+-- Supplements files_fts for CJK text: unicode61 tokenizes on word
+-- boundaries, so it can't match a substring inside a Korean/Chinese/Japanese
+-- compound "word" (those scripts don't use spaces between words). Trigram
+-- indexes every 3-character sequence instead, so it can find e.g. "그래프"
+-- inside "그래프이론". Kept as a separate table (not a replacement) since
+-- trigram can't match queries under 3 characters and changes relevance
+-- ranking in ways that would regress normal word-based search -- see
+-- VaultDB.search and DECISIONS.md D9.
+CREATE VIRTUAL TABLE IF NOT EXISTS files_fts_trigram USING fts5(
+  path, title, content, tokenize='trigram'
+);
 `;

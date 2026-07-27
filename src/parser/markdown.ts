@@ -6,7 +6,7 @@ const MARKDOWN_LINK_RE = /\[([^\]]*)\]\(([^)]+)\)/g;
 const INLINE_CODE_RE = /`[^`]*`/g;
 const HEADING_RE = /^(#{1,6})\s+(.*)$/;
 const BLOCK_ID_RE = /\s\^([A-Za-z0-9-]+)\s*$/;
-const TAG_RE = /(^|\s)#([\p{L}\p{N}_/-]+)/gu;
+export const TAG_RE = /(^|\s)#([\p{L}\p{N}_/-]+)/gu;
 const FENCE_RE = /^(```|~~~)/;
 
 function maskInlineCode(line: string): string {
@@ -38,7 +38,7 @@ function isExternalUrl(target: string): boolean {
   return /^([a-z][a-z0-9+.-]*:)?\/\//i.test(target) || /^mailto:/i.test(target) || target.startsWith("#");
 }
 
-function normalizeTagText(raw: string): string | null {
+export function normalizeTagText(raw: string): string | null {
   const tag = raw.replace(/\/+$/, "").trim();
   if (!tag) return null;
   if (/^[0-9_/-]+$/.test(tag)) return null; // must contain at least one letter
@@ -78,7 +78,7 @@ function extractFrontmatterLinks(data: Record<string, unknown>): ParsedLink[] {
   return links;
 }
 
-function toStringArray(value: unknown): string[] {
+export function toStringArray(value: unknown): string[] {
   if (value == null) return [];
   if (Array.isArray(value)) {
     return value.flatMap((v) => toStringArray(v));

@@ -159,3 +159,60 @@ describe("Unicode normalization (NFC/NFD)", () => {
     db.close();
   });
 });
+
+describe("CJK substring search (trigram fallback)", () => {
+  function upsertNote(db: VaultDB, path: string, content: string): void {
+    db.upsertFileMeta({
+      path,
+      isMarkdown: true,
+      mtime: 0,
+      hash: path,
+      title: null,
+      frontmatterJson: null,
+      rawContent: content,
+    });
+  }
+
+  it("finds a 3+ character substring inside a Korean compound word unicode61 alone would miss", () => {
+    const db = new VaultDB(":memory:");
+    upsertNote(db, "Graph Theory.md", "그래프이론 노트입니다.");
+    upsertNote(db, "Unrelated.md", "전혀 관련 없는 내용.");
+
+    // unicode61 tokenizes "그래프이론" as one whole-word token; "그래프" is a
+    // strict substring of it, not a token match on its own.
+    const results = db.search("그래프");
+    expect(results.map((r) => r.path)).toContain("Graph Theory.md");
+    expect(results.map((r) => r.path)).not.toContain("Unrelated.md");
+    db.close();
+  });
+
+  it("still returns whole-word unicode61 matches first, unaffected by the trigram fallback", () => {
+    const db = new VaultDB(":memory:");
+    upsertNote(db, "English.md", "This note is about graph theory.");
+    const results = db.search("graph");
+    expect(results[0]?.path).toBe("English.md");
+    db.close();
+  });
+
+  it("does not match a 2-character CJK query (below trigram's 3-char minimum) -- documented limitation", () => {
+    const db = new VaultDB(":memory:");
+    upsertNote(db, "Korean.md", "한글테스트 노트.");
+    expect(db.search("한글")).toHaveLength(0);
+    db.close();
+  });
+
+  it("backfills the trigram index once for a pre-existing database that predates it", () => {
+    const dbFile = path.join(mkdtempSync(path.join(tmpdir(), "oe-trigram-migrate-")), "index.db");
+    const db1 = new VaultDB(dbFile);
+    upsertNote(db1, "Graph Theory.md", "그래프이론 노트입니다.");
+    // Simulate an existing database created before files_fts_trigram existed:
+    // wipe just the trigram table, leaving `files`/`files_fts` populated.
+    db1.db.exec("DELETE FROM files_fts_trigram");
+    db1.close();
+
+    const db2 = new VaultDB(dbFile);
+    const results = db2.search("그래프");
+    expect(results.map((r) => r.path)).toContain("Graph Theory.md");
+    db2.close();
+  });
+});

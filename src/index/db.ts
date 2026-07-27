@@ -48,6 +48,23 @@ export class VaultDB {
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.db.exec(SCHEMA_SQL);
+    this.backfillTrigramIndexIfNeeded();
+  }
+
+  /**
+   * files_fts_trigram (see schema.ts) was added after files_fts; on an
+   * existing index database it starts out empty, and fullScan's mtime+hash
+   * gating means unchanged files would never repopulate it on their own.
+   * Cheap no-op once populated (a COUNT(*) that short-circuits).
+   */
+  private backfillTrigramIndexIfNeeded(): void {
+    const { count } = this.db.prepare("SELECT COUNT(*) as count FROM files_fts_trigram").get() as { count: number };
+    if (count > 0) return;
+    const { fileCount } = this.db.prepare("SELECT COUNT(*) as fileCount FROM files").get() as { fileCount: number };
+    if (fileCount === 0) return;
+    this.db.exec(
+      "INSERT INTO files_fts_trigram (rowid, path, title, content) SELECT id, path, title, COALESCE(raw_content, '') FROM files",
+    );
   }
 
   close(): void {
@@ -121,6 +138,7 @@ export class VaultDB {
     const existing = this.getFileByPath(path);
     if (!existing) return null;
     this.db.prepare("DELETE FROM files_fts WHERE rowid = ?").run(existing.id);
+    this.db.prepare("DELETE FROM files_fts_trigram WHERE rowid = ?").run(existing.id);
     this.db.prepare("DELETE FROM files WHERE id = ?").run(existing.id);
     return existing.id;
   }
@@ -130,6 +148,10 @@ export class VaultDB {
     this.db.prepare("DELETE FROM files_fts WHERE rowid = ?").run(id);
     this.db
       .prepare("INSERT OR REPLACE INTO files_fts (rowid, path, title, content) VALUES (?,?,?,?)")
+      .run(id, path, title ?? "", content ?? "");
+    this.db.prepare("DELETE FROM files_fts_trigram WHERE rowid = ?").run(id);
+    this.db
+      .prepare("INSERT OR REPLACE INTO files_fts_trigram (rowid, path, title, content) VALUES (?,?,?,?)")
       .run(id, path, title ?? "", content ?? "");
   }
 
@@ -335,7 +357,7 @@ export class VaultDB {
   }
 
   search(query: string, limit = 20): { path: string; title: string | null; snippet: string }[] {
-    return this.db
+    const primary = this.db
       .prepare(
         `SELECT f.path as path, f.title as title, snippet(files_fts, 2, '[', ']', '...', 10) as snippet
          FROM files_fts ffts JOIN files f ON f.id = ffts.rowid
@@ -344,5 +366,37 @@ export class VaultDB {
          LIMIT ?`,
       )
       .all(query, limit) as { path: string; title: string | null; snippet: string }[];
+    if (primary.length >= limit) return primary;
+
+    // Trigram fallback: only ever adds results the word-based query above
+    // missed (never reorders or replaces them) -- see files_fts_trigram in
+    // schema.ts and DECISIONS.md D9. Wrapped in try/catch because the FTS5
+    // query-syntax subset that's valid against files_fts isn't guaranteed
+    // to be valid against a trigram-tokenized table; if it throws, the
+    // word-based results already stand on their own.
+    let trigram: { path: string; title: string | null; snippet: string }[];
+    try {
+      trigram = this.db
+        .prepare(
+          `SELECT f.path as path, f.title as title, snippet(files_fts_trigram, 2, '[', ']', '...', 10) as snippet
+           FROM files_fts_trigram ffts JOIN files f ON f.id = ffts.rowid
+           WHERE files_fts_trigram MATCH ?
+           ORDER BY rank
+           LIMIT ?`,
+        )
+        .all(query, limit) as { path: string; title: string | null; snippet: string }[];
+    } catch {
+      return primary;
+    }
+
+    const seen = new Set(primary.map((r) => r.path));
+    const merged = [...primary];
+    for (const row of trigram) {
+      if (seen.has(row.path)) continue;
+      seen.add(row.path);
+      merged.push(row);
+      if (merged.length >= limit) break;
+    }
+    return merged;
   }
 }

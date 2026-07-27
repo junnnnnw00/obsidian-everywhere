@@ -40,14 +40,14 @@ vault (.md 파일)
 SQLite 인덱스 (FTS5)  ⇄  인메모리 그래프 (graphology)
   │                         n-hop · 최단 경로 · PageRank
   ▼
-31개 MCP 도구
+35개 MCP 도구
   │
   ▼
 stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 ```
 
 - **실제 그래프 엔진** — wikilink, embed, frontmatter, 중첩 태그, heading, block reference를 파싱합니다. 파일 변경은 전체 재구축 없이 SQLite 인덱스와 그래프에 증분 반영됩니다.
-- **31개 MCP 도구** — 그래프 탐색, 구조화·페이지네이션 읽기, 안전한 이동·삭제·부분 편집, rollback 가능한 일괄 정리, regex/목록, Base 정적 검증과 Obsidian 저장 설정 조회·수정을 제공합니다.
+- **35개 MCP 도구** — 그래프 탐색, 구조화·페이지네이션 읽기, 안전한 이동·삭제·부분 편집, rollback 가능한 일괄 정리, regex/목록, Base 정적 검증과 Obsidian 저장 설정 조회·수정을 제공합니다.
 - **세 가지 연결 방식** — 로컬 클라이언트는 stdio, 사설 원격 연결은 bearer token 기반 Streamable HTTP, 공개 connector는 OAuth 2.1 기반 Streamable HTTP를 사용합니다.
 
 ### 제공 도구
@@ -55,7 +55,7 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 | 읽기 도구 | 용도 |
 |---|---|
 | `vault_overview` | 노트 수, 주요 태그, PageRank 허브, 최근 수정 노트 확인 |
-| `search_notes` | 본문·제목 전문 검색과 태그·폴더 필터 |
+| `search_notes` | 본문·제목 전문 검색과 태그·폴더 필터 (한글 등 CJK 복합어 부분검색은 trigram으로 보완 — DECISIONS.md D9 참고) |
 | `read_note` | `content`, frontmatter, 링크, 태그를 구조화해 반환하고 줄 단위 페이지네이션 지원 |
 | `list_notes` | 폴더 범위와 페이지네이션을 지원하는 명시적 노트 목록 |
 | `list_folder` | 한 폴더 바로 아래의 하위 폴더·노트·첨부파일 목록 |
@@ -75,10 +75,13 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 | 쓰기 도구 | 용도 |
 |---|---|
 | `create_note` | frontmatter를 포함한 새 노트 생성 및 즉시 인덱싱 |
+| `apply_template` | 템플릿 노트로 새 노트 생성, Obsidian core Templates 변수 `{{date}}`/`{{time}}`/`{{title}}` 치환 |
 | `append_to_note` | 노트 끝이나 특정 heading 아래에 내용 추가 |
 | `move_note`, `rename_note`, `delete_note` | 링크 갱신·백링크 보호·휴지통을 포함한 수명주기 작업 |
 | `replace_text`, `patch_section` | 정확한 문구 또는 heading 범위 부분 수정 |
 | `update_frontmatter`, `remove_frontmatter_field` | 본문을 건드리지 않는 frontmatter 수정 |
+| `add_tags`, `remove_tags` | 노트 한 개의 frontmatter 태그 추가·삭제 |
+| `rename_tag` | vault 전체에서 frontmatter와 본문 인라인 `#태그`를 함께 이름변경, 기본 dry-run + rollback 지원 |
 | `bulk_replace`, `rollback_bulk_edit` | dry-run·파일 제한·snapshot·rollback이 있는 일괄 치환 |
 | `set_hotkey`, `set_templates_folder` | 저장된 Obsidian 설정 수정(앱에서 vault reload가 필요할 수 있음) |
 
@@ -118,7 +121,7 @@ npx -y obsidian-everywhere doctor /절대/경로/내/vault
 | | **Obsidian Everywhere** | [obsidian-mcp-server](https://github.com/cyanheads/obsidian-mcp-server) | [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) | [TurboVault](https://github.com/epistates/turbovault) |
 |---|---|---|---|---|
 | 설치 | `npx` | `npx` | Obsidian community plugin | `cargo install` / binary |
-| 공개된 도구 수 | **31** | 14 | 16 | 74 |
+| 공개된 도구 수 | **35** | 14 | 16 | 74 |
 | Obsidian 실행 필요 | **아니요** | 예 | 예 | **아니요** |
 | 대표 그래프 기능 | PageRank·최단 경로·n-hop·미해결 링크 | 구조화 읽기의 outgoing links | 실행 중인 Obsidian metadata/search | multi-hop·centrality·cluster·추천 |
 | 안전한 편집 | 부분 편집·bulk dry-run·snapshot·rollback | 정밀 편집·frontmatter/tag 관리 | live heading/block/frontmatter patch | conflict hash·audit rollback·Git batch |

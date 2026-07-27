@@ -389,6 +389,28 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
     );
 
     server.registerTool(
+      "apply_template",
+      {
+        title: "Apply Template",
+        description:
+          "Create a new note from an existing template note (path, title, or alias), substituting Obsidian's core Templates plugin variables: {{date}}, {{date:FORMAT}}, {{time}}, {{time:FORMAT}}, {{title}}. FORMAT supports YYYY/YY/MM/DD/HH/mm/ss tokens. Templater-only syntax (<% %>) is not evaluated and is left as literal text. Fails if the target note already exists unless overwrite is set.",
+        inputSchema: {
+          template: z.string().describe("Template note's path, title, or alias."),
+          path: z
+            .string()
+            .describe("Vault-relative path for the new note, e.g. 'Daily/2026-01-01' (`.md` is added automatically)."),
+          frontmatter: z
+            .record(z.string(), z.unknown())
+            .optional()
+            .describe("Extra frontmatter fields to merge in on top of the rendered template's own frontmatter."),
+          overwrite: z.boolean().optional().describe("Replace the note if it already exists (default false)."),
+        },
+        annotations: DESTRUCTIVE_WRITE,
+      },
+      async (args) => textResult(tools.applyTemplate(engine, args)),
+    );
+
+    server.registerTool(
       "append_to_note",
       {
         title: "Append To Note",
@@ -521,6 +543,54 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
     );
 
     server.registerTool(
+      "add_tags",
+      {
+        title: "Add Tags",
+        description: "Add one or more tags to a note's frontmatter `tags` array, deduplicated against existing tags.",
+        inputSchema: {
+          path: z.string().describe("Existing note path, title, or alias."),
+          tags: z.array(z.string().min(1)).min(1).describe("Tags to add, with or without a leading #."),
+        },
+        annotations: ADDITIVE_WRITE,
+      },
+      async (args) => textResult(mutations.addTags(engine, args)),
+    );
+
+    server.registerTool(
+      "remove_tags",
+      {
+        title: "Remove Tags",
+        description: "Remove one or more tags from a note's frontmatter `tags` array.",
+        inputSchema: {
+          path: z.string().describe("Existing note path, title, or alias."),
+          tags: z.array(z.string().min(1)).min(1).describe("Tags to remove, with or without a leading #."),
+        },
+        annotations: IDEMPOTENT_WRITE,
+      },
+      async (args) => textResult(mutations.removeTags(engine, args)),
+    );
+
+    server.registerTool(
+      "rename_tag",
+      {
+        title: "Rename Tag",
+        description:
+          "Rename a tag vault-wide, across both frontmatter `tags` arrays and inline #tag text. Defaults to dry-run and creates a rollback snapshot (restorable via rollback_bulk_edit) when applied.",
+        inputSchema: {
+          from: z.string().min(1).describe("Existing tag name, with or without a leading #."),
+          to: z.string().min(1).describe("New tag name, with or without a leading #."),
+          includeNested: z
+            .boolean()
+            .optional()
+            .describe("Also rename child tags under from/ (default false), e.g. project/a -> newname/a."),
+          dryRun: z.boolean().optional().describe("Preview only (default true). Set false to apply."),
+        },
+        annotations: DESTRUCTIVE_WRITE,
+      },
+      async (args) => textResult(mutations.renameTag(engine, args)),
+    );
+
+    server.registerTool(
       "bulk_replace",
       {
         title: "Bulk Replace",
@@ -550,7 +620,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
       "rollback_bulk_edit",
       {
         title: "Rollback Bulk Edit",
-        description: "Restore every file from a rollback snapshot created by bulk_replace.",
+        description: "Restore every file from a rollback snapshot created by bulk_replace or rename_tag.",
         inputSchema: { rollbackId: z.string().describe("Rollback ID returned by bulk_replace.") },
         annotations: IDEMPOTENT_WRITE,
       },

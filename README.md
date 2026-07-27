@@ -58,7 +58,7 @@ vault (.md files)
 SQLite index (FTS5)  ⇄  in-memory graph (graphology)
   │                       n-hop · shortest path · PageRank
   ▼
-31 MCP tools
+35 MCP tools
   │
   ▼
 stdio  ·  bearer-token HTTP  ·  OAuth HTTP
@@ -69,7 +69,7 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
   with full-text search, and an in-memory [graphology](https://graphology.github.io/)
   layer for n-hop traversal, shortest paths, and PageRank — kept in sync
   incrementally as files change, never rebuilt from scratch.
-- 🛠️ **31 graph-native MCP tools** — graph navigation, structured/paginated reads, safe lifecycle and partial edits, rollback-capable bulk cleanup, regex/listing, Base checks, and persisted Obsidian settings.
+- 🛠️ **35 graph-native MCP tools** — graph navigation, structured/paginated reads, safe lifecycle and partial edits, rollback-capable bulk cleanup, regex/listing, Base checks, and persisted Obsidian settings.
 - 🔌 **Three ways to connect** — stdio for local MCP clients (including
   Codex CLI, ChatGPT Desktop, and Claude), Streamable HTTP with a static
   bearer token for private remote clients, and Streamable HTTP with OAuth
@@ -83,7 +83,7 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 | Tool | What it does |
 |---|---|
 | `vault_overview` | Note counts, top tags, PageRank hub notes, recently modified — a starting orientation |
-| `search_notes` | Full-text search with tag/folder filters, each result annotated with link counts and tags |
+| `search_notes` | Full-text search with tag/folder filters (with a trigram fallback for CJK substring matches unicode61 alone would miss — see DECISIONS.md D9), each result annotated with link counts and tags |
 | `read_note` | Structured content/frontmatter/links/tags plus line pagination; optional heading-scoped read |
 | `list_notes` | Explicit folder-aware note listing with pagination |
 | `list_folder` | Immediate child folders, notes, and attachments |
@@ -105,10 +105,13 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 | Tool | What it does |
 |---|---|
 | `create_note` | Create a new note (with frontmatter); reindexed immediately — the next tool call already sees it |
+| `apply_template` | Create a note from a template, substituting `{{date}}`/`{{time}}`/`{{title}}` (Obsidian's core Templates variables) |
 | `append_to_note` | Append to a note, optionally under a specific heading; fails closed if the heading isn't found |
 | `move_note` / `rename_note` / `delete_note` | Lifecycle operations with inbound-link rewriting, backlink guardrails, and recoverable trash |
 | `replace_text` / `patch_section` | Guarded exact-text and heading-scoped edits |
 | `update_frontmatter` / `remove_frontmatter_field` | Change properties without replacing the note body |
+| `add_tags` / `remove_tags` | Add or remove frontmatter tags on one note |
+| `rename_tag` | Rename a tag vault-wide across frontmatter and inline `#tag` text, dry-run first with rollback |
 | `bulk_replace` / `rollback_bulk_edit` | Dry-run-first folder/regex replacement with snapshots and rollback |
 | `set_hotkey` / `set_templates_folder` | Update persisted Obsidian settings (vault reload may be required) |
 
@@ -152,7 +155,7 @@ you work rather than assuming one server wins every category.
 | | **Obsidian Everywhere** | [obsidian-mcp-server](https://github.com/cyanheads/obsidian-mcp-server) | [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) | [TurboVault](https://github.com/epistates/turbovault) |
 |---|---|---|---|---|
 | Install | `npx` | `npx` | Obsidian community plugin | `cargo install` / binary |
-| Published tools | **31** | 14 | 16 | 74 |
+| Published tools | **35** | 14 | 16 | 74 |
 | Obsidian must be open | **No** | Yes | Yes | **No** |
 | Best graph capability | PageRank, shortest path, n-hop, unresolved links | Outgoing links in structured reads | Live Obsidian metadata/search | Multi-hop, centrality, clusters, suggestions |
 | Safe editing | Partial edits; bulk dry-run, snapshot, rollback | Surgical edits and frontmatter/tag management | Live heading/block/frontmatter patching | Conflict hashes, audit rollback, Git-backed batch |
@@ -225,7 +228,7 @@ codex mcp list
 Then restart ChatGPT Desktop (or the IDE extension). In ChatGPT Desktop you
 can also add it through **Settings → MCP servers → Add server**, choose
 **STDIO**, and enter the same command and arguments. Type `/mcp` in Codex to
-confirm that the server and its 31 tools are connected.
+confirm that the server and its 35 tools are connected.
 
 For a project-scoped configuration instead, add this to a trusted project's
 `.codex/config.toml`; use `~/.codex/config.toml` to make it available globally:

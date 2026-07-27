@@ -41,7 +41,9 @@ describe("MCP stdio-layer tool server", () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      "add_tags",
       "append_to_note",
+      "apply_template",
       "bulk_replace",
       "create_note",
       "delete_note",
@@ -63,7 +65,9 @@ describe("MCP stdio-layer tool server", () => {
       "read_note",
       "regex_search",
       "remove_frontmatter_field",
+      "remove_tags",
       "rename_note",
+      "rename_tag",
       "replace_text",
       "rollback_bulk_edit",
       "search_notes",
@@ -74,14 +78,18 @@ describe("MCP stdio-layer tool server", () => {
       "vault_overview",
     ]);
     const writeToolNames = new Set([
+      "add_tags",
       "append_to_note",
+      "apply_template",
       "bulk_replace",
       "create_note",
       "delete_note",
       "move_note",
       "patch_section",
       "remove_frontmatter_field",
+      "remove_tags",
       "rename_note",
+      "rename_tag",
       "replace_text",
       "rollback_bulk_edit",
       "set_hotkey",
