@@ -4,6 +4,18 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project doesn't yet follow strict semver pre-1.0.
 
+## [0.5.0] — 2026-07-27
+
+### Added
+
+- `semantic_search` — meaning-based search via local embeddings (`Xenova/multilingual-e5-small`, int8-quantized, ~120MB), finding conceptually related notes even without shared vocabulary, including across languages. Fully local: no API key, cloud account, or Ollama process. Embeddings are computed lazily (only once a semantic tool is actually used) and incrementally (only new/changed notes, up to 50 per call).
+- `get_related` gained an optional `method: "semantic"` (default stays `"jaccard"`, unchanged) using the same embedding infrastructure, for finding topically similar notes that share no tags or links at all.
+- See DECISIONS.md D20 for the full design rationale (why local-only, why brute-force cosine over a vector-search extension, why lazy/bounded indexing, and the two `npm audit` advisories accepted as unreachable for this project's text-only usage).
+
+### Fixed
+
+- A note whose frontmatter isn't valid YAML (e.g. a Templater placeholder like `{{date:YYYY-[W]ww}}`, valid template syntax but not valid YAML) no longer crashes the entire indexing pass — and with it the whole process, repeatedly, on every restart. It now degrades to "no frontmatter, whole file as body" for that one note and keeps going.
+
 ## [0.4.0] — 2026-07-27
 
 ### Added
