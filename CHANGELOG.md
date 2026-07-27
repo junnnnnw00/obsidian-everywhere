@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project doesn't yet follow strict semver pre-1.0.
 
+## [0.5.1] — 2026-07-27
+
+### Fixed
+
+- `fullScan`, `applyFileUpsert`, and `applyFileDelete` now run inside a single SQLite transaction (`VaultDB.transaction`). Previously a crash partway through a scan — e.g. the frontmatter-YAML crash fixed in 0.5.0, hit repeatedly on a real deployment before that fix shipped — could leave files with their content written but their links not yet written (a separate, later pass), and the mtime+hash "unchanged" short-circuit meant those files were silently skipped on every future scan, permanently undercounting backlinks/outlinks and inflating orphan counts. See DECISIONS.md D21.
+
 ## [0.5.0] — 2026-07-27
 
 ### Added
