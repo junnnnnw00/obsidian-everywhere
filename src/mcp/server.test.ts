@@ -118,6 +118,19 @@ describe("MCP stdio-layer tool server", () => {
     expect(client.getInstructions()).toContain("confirm that the user intends to modify the vault");
   });
 
+  it("rejects an unrecognized parameter instead of silently ignoring it (DECISIONS.md D22)", async () => {
+    // `regex_search` takes `folder`, not `paths` -- a caller that typos the
+    // param name must get a clear error, not a call that quietly ran with
+    // `folder` unset (searching the whole vault) and no indication anything
+    // was wrong.
+    const result = await client.callTool({
+      name: "regex_search",
+      arguments: { pattern: "x", paths: ["Folder1"] },
+    });
+    expect(result.isError).toBe(true);
+    expect(textOf(result as any)).toMatch(/unrecognized key.*paths/i);
+  });
+
   it("vault_overview reports hub notes and tag distribution", async () => {
     const result = await client.callTool({ name: "vault_overview", arguments: {} });
     const text = textOf(result as any);
