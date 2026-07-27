@@ -71,6 +71,20 @@ export class VaultDB {
     this.db.close();
   }
 
+  /**
+   * Runs `fn` (must be synchronous) inside a SQLite transaction: if it
+   * throws partway through, every write it made is rolled back, leaving
+   * the DB exactly as it was before. fullScan needs this -- it writes each
+   * file's content in one pass and every file's links in a second, later
+   * pass, so a crash between those two passes previously left affected
+   * files with content but no links, and the mtime+hash "unchanged"
+   * short-circuit meant no later scan would ever notice or repair it
+   * (see DECISIONS.md D21).
+   */
+  transaction<T>(fn: () => T): T {
+    return this.db.transaction(fn)();
+  }
+
   // --- file CRUD -----------------------------------------------------
 
   getFileByPath(path: string): FileRow | undefined {

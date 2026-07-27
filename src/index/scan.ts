@@ -107,40 +107,51 @@ function upsertFileContent(
   return { status: existing ? "updated" : "added", fileId, links: parsed.links };
 }
 
-/** Full vault scan: only changed/new files are re-parsed (mtime+hash short-circuit). */
+/**
+ * Full vault scan: only changed/new files are re-parsed (mtime+hash
+ * short-circuit). Runs inside a DB transaction (see VaultDB.transaction) --
+ * this writes every file's content in one pass and every file's links in a
+ * second, later pass, so without transactional atomicity a crash between
+ * those two passes could leave affected files with content but no links,
+ * permanently (the "unchanged" short-circuit would never revisit them).
+ * File I/O (walkVaultFiles, reading content, parsing) still happens
+ * up front / interleaved as before -- only the DB writes are transactional.
+ */
 export function fullScan(db: VaultDB, vaultDir: string, excludeDirs: string[] = DEFAULT_EXCLUDE_DIRS): ScanResult {
-  const diskFiles = walkVaultFiles(vaultDir, excludeDirs);
-  const diskPaths = new Set(diskFiles.map((f) => f.relPath));
+  return db.transaction(() => {
+    const diskFiles = walkVaultFiles(vaultDir, excludeDirs);
+    const diskPaths = new Set(diskFiles.map((f) => f.relPath));
 
-  const removedFiles: string[] = [];
-  for (const existing of db.getAllFiles()) {
-    if (!diskPaths.has(existing.path)) {
-      db.deleteFileByPath(existing.path);
-      removedFiles.push(existing.path);
+    const removedFiles: string[] = [];
+    for (const existing of db.getAllFiles()) {
+      if (!diskPaths.has(existing.path)) {
+        db.deleteFileByPath(existing.path);
+        removedFiles.push(existing.path);
+      }
     }
-  }
 
-  const addedFiles: string[] = [];
-  const updatedFiles: string[] = [];
-  const pendingLinks = new Map<number, ParsedLink[]>();
+    const addedFiles: string[] = [];
+    const updatedFiles: string[] = [];
+    const pendingLinks = new Map<number, ParsedLink[]>();
 
-  for (const file of diskFiles) {
-    const result = upsertFileContent(db, file);
-    if (result.status === "added") addedFiles.push(file.relPath);
-    if (result.status === "updated") updatedFiles.push(file.relPath);
-    if (result.links.length > 0 || result.status !== "unchanged") {
-      pendingLinks.set(result.fileId, result.links);
+    for (const file of diskFiles) {
+      const result = upsertFileContent(db, file);
+      if (result.status === "added") addedFiles.push(file.relPath);
+      if (result.status === "updated") updatedFiles.push(file.relPath);
+      if (result.links.length > 0 || result.status !== "unchanged") {
+        pendingLinks.set(result.fileId, result.links);
+      }
     }
-  }
 
-  const resolverIndex = db.buildResolverIndex();
-  for (const [fileId, links] of pendingLinks) {
-    db.replaceLinks(fileId, links, resolverIndex);
-  }
+    const resolverIndex = db.buildResolverIndex();
+    for (const [fileId, links] of pendingLinks) {
+      db.replaceLinks(fileId, links, resolverIndex);
+    }
 
-  const linkChanges = db.reresolveAllLinks(resolverIndex);
+    const linkChanges = db.reresolveAllLinks(resolverIndex);
 
-  return { addedFiles, updatedFiles, removedFiles, linkChanges };
+    return { addedFiles, updatedFiles, removedFiles, linkChanges };
+  });
 }
 
 /**
@@ -154,31 +165,35 @@ export function applyFileUpsert(db: VaultDB, vaultDir: string, relPath: string):
   const canonicalRelPath = relPath.normalize("NFC");
   const file: DiskFile = { relPath: canonicalRelPath, absPath, mtimeMs: stat.mtimeMs, size: stat.size };
 
-  const result = upsertFileContent(db, file);
-  const resolverIndex = db.buildResolverIndex();
-  if (result.links.length > 0 || result.status !== "unchanged") {
-    db.replaceLinks(result.fileId, result.links, resolverIndex);
-  }
-  const linkChanges = db.reresolveAllLinks(resolverIndex);
+  return db.transaction(() => {
+    const result = upsertFileContent(db, file);
+    const resolverIndex = db.buildResolverIndex();
+    if (result.links.length > 0 || result.status !== "unchanged") {
+      db.replaceLinks(result.fileId, result.links, resolverIndex);
+    }
+    const linkChanges = db.reresolveAllLinks(resolverIndex);
 
-  return {
-    addedFiles: result.status === "added" ? [canonicalRelPath] : [],
-    updatedFiles: result.status === "updated" ? [canonicalRelPath] : [],
-    removedFiles: [],
-    linkChanges,
-  };
+    return {
+      addedFiles: result.status === "added" ? [canonicalRelPath] : [],
+      updatedFiles: result.status === "updated" ? [canonicalRelPath] : [],
+      removedFiles: [],
+      linkChanges,
+    };
+  });
 }
 
 /** Apply a single filesystem delete event incrementally. */
 export function applyFileDelete(db: VaultDB, relPath: string): ScanResult {
   const canonicalRelPath = relPath.normalize("NFC");
-  const removedId = db.deleteFileByPath(canonicalRelPath);
-  if (removedId === null) {
-    return { addedFiles: [], updatedFiles: [], removedFiles: [], linkChanges: [] };
-  }
-  const resolverIndex = db.buildResolverIndex();
-  const linkChanges = db.reresolveAllLinks(resolverIndex);
-  return { addedFiles: [], updatedFiles: [], removedFiles: [canonicalRelPath], linkChanges };
+  return db.transaction(() => {
+    const removedId = db.deleteFileByPath(canonicalRelPath);
+    if (removedId === null) {
+      return { addedFiles: [], updatedFiles: [], removedFiles: [], linkChanges: [] };
+    }
+    const resolverIndex = db.buildResolverIndex();
+    const linkChanges = db.reresolveAllLinks(resolverIndex);
+    return { addedFiles: [], updatedFiles: [], removedFiles: [canonicalRelPath], linkChanges };
+  });
 }
 
 /** Rename = delete old path + upsert new path, re-resolving links across the vault. */

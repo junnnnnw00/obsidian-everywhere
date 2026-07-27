@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -214,5 +214,65 @@ describe("CJK substring search (trigram fallback)", () => {
     const results = db2.search("그래프");
     expect(results.map((r) => r.path)).toContain("Graph Theory.md");
     db2.close();
+  });
+});
+
+describe("VaultDB.transaction", () => {
+  it("rolls back every write if the wrapped function throws", () => {
+    const db = new VaultDB(":memory:");
+    expect(() =>
+      db.transaction(() => {
+        db.upsertFileMeta({
+          path: "Note.md",
+          isMarkdown: true,
+          mtime: 0,
+          hash: "h1",
+          title: "Note",
+          frontmatterJson: null,
+          rawContent: "content",
+        });
+        throw new Error("simulated mid-transaction failure");
+      }),
+    ).toThrow("simulated mid-transaction failure");
+    expect(db.getFileByPath("Note.md")).toBeUndefined();
+    db.close();
+  });
+});
+
+describe("fullScan atomicity (DECISIONS.md D21)", () => {
+  let tmpVault: string;
+
+  afterEach(() => {
+    if (tmpVault) {
+      // Restore read permission so rmSync can clean up B.md.
+      try {
+        chmodSync(path.join(tmpVault, "B.md"), 0o644);
+      } catch {
+        // already restored or never chmod'd
+      }
+      rmSync(tmpVault, { recursive: true, force: true });
+    }
+  });
+
+  it("a failure partway through the scan leaves every file's DB state exactly as it was, not partially updated", () => {
+    tmpVault = mkdtempSync(path.join(tmpdir(), "oe-scan-atomic-"));
+    writeFileSync(path.join(tmpVault, "A.md"), "[[B]]");
+    writeFileSync(path.join(tmpVault, "B.md"), "content");
+
+    const db = new VaultDB(":memory:");
+    fullScan(db, tmpVault);
+    expect(db.getOutlinks("A.md")).toHaveLength(1); // sanity: the first, successful scan worked normally
+
+    // Change A.md (so it needs reprocessing) and make B.md unreadable, so
+    // *some* file in this second scan attempt throws -- wherever B.md
+    // lands in the walk order, the whole scan (one DB transaction) must
+    // roll back, not just skip B.md while keeping A.md's update.
+    writeFileSync(path.join(tmpVault, "A.md"), "[[B]] updated");
+    chmodSync(path.join(tmpVault, "B.md"), 0o000);
+
+    expect(() => fullScan(db, tmpVault)).toThrow();
+
+    expect(db.getFileByPath("A.md")?.raw_content).toBe("[[B]]"); // NOT "[[B]] updated"
+    db.close();
   });
 });
