@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project doesn't yet follow strict semver pre-1.0.
 
+## [0.3.5] — 2026-07-27
+
+### Security
+
+- The OAuth login route (`POST /login`) is now rate-limited (20 requests / 15 min per IP). It was the one route in the OAuth flow not covered by the SDK's own rate-limited auth router; `completeLogin`'s one-shot-per-authzId design (see DECISIONS.md D11) stops repeated guesses against a single authorization attempt, but didn't stop a script from minting fresh ones indefinitely. Flagged by CodeQL (`js/missing-rate-limiting`).
+- Overrode the transitive `@hono/node-server` (pulled in by `@modelcontextprotocol/sdk`'s HTTP transport) to `^2.0.12`, resolving a moderate-severity path-traversal advisory in an older 1.x release. `npm audit` now reports zero vulnerabilities.
+
 ## [0.3.4] — 2026-07-24
 
 ### Fixed
