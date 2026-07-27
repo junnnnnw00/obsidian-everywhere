@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project doesn't yet follow strict semver pre-1.0.
 
+## [0.4.0] — 2026-07-27
+
+### Added
+
+- `add_tags` / `remove_tags` — add or remove frontmatter tags on one note, deduplicated and normalized (accepts a leading `#` or not), consolidating a legacy singular `tag` key into the canonical `tags` array.
+- `rename_tag` — renames a tag vault-wide across both frontmatter `tags` arrays and inline `#tag` text (code fences and inline code are skipped). Defaults to dry-run; applying returns a rollback ID restorable via the existing `rollback_bulk_edit`. Optional `includeNested` also renames `from/child` tags.
+- `apply_template` — creates a note from an existing template note, substituting Obsidian's core Templates plugin variables (`{{date}}`, `{{date:FORMAT}}`, `{{time}}`, `{{time:FORMAT}}`, `{{title}}`); Templater-only `<% %>` syntax is left untouched rather than guessed at (see DECISIONS.md D19).
+- CJK substring search: `search_notes` now falls back to a trigram-tokenized FTS5 index when the word-based (`unicode61`) query comes up short, so a Korean/Chinese/Japanese compound "word" can be found by a 3+ character substring inside it (see DECISIONS.md D9). Existing index databases backfill the new trigram table automatically on next start.
+
 ## [0.3.5] — 2026-07-27
 
 ### Security
