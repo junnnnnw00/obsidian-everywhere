@@ -84,4 +84,15 @@ CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
 CREATE VIRTUAL TABLE IF NOT EXISTS files_fts_trigram USING fts5(
   path, title, content, tokenize='trigram'
 );
+
+-- One row per markdown file, computed lazily/on-demand (not during
+-- fullScan/watch) -- see VaultEngine.ensureEmbeddingsFresh and
+-- DECISIONS.md D20. The model column lets a future model change be
+-- detected and re-embedded rather than silently mixing incompatible vectors.
+CREATE TABLE IF NOT EXISTS embeddings (
+  file_id INTEGER PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE,
+  model TEXT NOT NULL,
+  vector BLOB NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 `;

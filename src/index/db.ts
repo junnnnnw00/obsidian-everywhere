@@ -153,6 +153,11 @@ export class VaultDB {
     this.db
       .prepare("INSERT OR REPLACE INTO files_fts_trigram (rowid, path, title, content) VALUES (?,?,?,?)")
       .run(id, path, title ?? "", content ?? "");
+    // upsertFileMeta only ever calls upsertFts when a file is new or its
+    // content actually changed (scan.ts short-circuits unchanged hashes
+    // before reaching here), so an existing embedding is now stale.
+    // ensureEmbeddingsFresh's "missing embedding" query re-picks it up.
+    this.db.prepare("DELETE FROM embeddings WHERE file_id = ?").run(id);
   }
 
   // --- derived data (links/tags/aliases/headings/blocks) -------------
@@ -398,5 +403,53 @@ export class VaultDB {
       if (merged.length >= limit) break;
     }
     return merged;
+  }
+
+  // --- semantic embeddings (see index/embeddings.ts, DECISIONS.md D20) ---
+
+  /** Markdown files with no embedding row for this model -- new files, or files upsertFts invalidated after a content change. */
+  getFilesNeedingEmbedding(model: string, limit: number): FileRow[] {
+    return this.db
+      .prepare(
+        `SELECT f.* FROM files f
+         LEFT JOIN embeddings e ON e.file_id = f.id AND e.model = ?
+         WHERE f.is_markdown = 1 AND e.file_id IS NULL
+         ORDER BY f.id
+         LIMIT ?`,
+      )
+      .all(model, limit) as FileRow[];
+  }
+
+  countFilesNeedingEmbedding(model: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) as c FROM files f
+         LEFT JOIN embeddings e ON e.file_id = f.id AND e.model = ?
+         WHERE f.is_markdown = 1 AND e.file_id IS NULL`,
+      )
+      .get(model) as { c: number };
+    return row.c;
+  }
+
+  upsertEmbedding(fileId: number, model: string, vector: Buffer): void {
+    this.db
+      .prepare(
+        `INSERT INTO embeddings (file_id, model, vector, updated_at) VALUES (?,?,?,?)
+         ON CONFLICT(file_id) DO UPDATE SET model=excluded.model, vector=excluded.vector, updated_at=excluded.updated_at`,
+      )
+      .run(fileId, model, vector, Date.now());
+  }
+
+  getEmbedding(fileId: number, model: string): Buffer | undefined {
+    const row = this.db.prepare("SELECT vector FROM embeddings WHERE file_id = ? AND model = ?").get(fileId, model) as
+      { vector: Buffer } | undefined;
+    return row?.vector;
+  }
+
+  getAllEmbeddings(model: string): { fileId: number; vector: Buffer }[] {
+    return this.db.prepare("SELECT file_id as fileId, vector FROM embeddings WHERE model = ?").all(model) as {
+      fileId: number;
+      vector: Buffer;
+    }[];
   }
 }

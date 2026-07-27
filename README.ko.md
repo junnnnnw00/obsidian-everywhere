@@ -40,15 +40,16 @@ vault (.md 파일)
 SQLite 인덱스 (FTS5)  ⇄  인메모리 그래프 (graphology)
   │                         n-hop · 최단 경로 · PageRank
   ▼
-35개 MCP 도구
+36개 MCP 도구
   │
   ▼
 stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 ```
 
 - **실제 그래프 엔진** — wikilink, embed, frontmatter, 중첩 태그, heading, block reference를 파싱합니다. 파일 변경은 전체 재구축 없이 SQLite 인덱스와 그래프에 증분 반영됩니다.
-- **35개 MCP 도구** — 그래프 탐색, 구조화·페이지네이션 읽기, 안전한 이동·삭제·부분 편집, rollback 가능한 일괄 정리, regex/목록, Base 정적 검증과 Obsidian 저장 설정 조회·수정을 제공합니다.
+- **36개 MCP 도구** — 그래프 탐색, 구조화·페이지네이션 읽기, 안전한 이동·삭제·부분 편집, rollback 가능한 일괄 정리, regex/목록, Base 정적 검증과 Obsidian 저장 설정 조회·수정을 제공합니다.
 - **세 가지 연결 방식** — 로컬 클라이언트는 stdio, 사설 원격 연결은 bearer token 기반 Streamable HTTP, 공개 connector는 OAuth 2.1 기반 Streamable HTTP를 사용합니다.
+- **완전 로컬 시맨틱 검색** — `semantic_search`와 `get_related`의 `method: "semantic"`은 소형 다국어 임베딩 모델(`multilingual-e5-small`)을 로컬에서 실행합니다. API key, 클라우드 계정, Ollama 프로세스 필요 없음 — 최초 1회(~120MB)만 받으면 이후 완전 오프라인으로 동작합니다.
 
 ### 제공 도구
 
@@ -56,6 +57,7 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 |---|---|
 | `vault_overview` | 노트 수, 주요 태그, PageRank 허브, 최근 수정 노트 확인 |
 | `search_notes` | 본문·제목 전문 검색과 태그·폴더 필터 (한글 등 CJK 복합어 부분검색은 trigram으로 보완 — DECISIONS.md D9 참고) |
+| `semantic_search` | 로컬 임베딩(`multilingual-e5-small`, 외부 서비스 없음) 기반 의미 검색 — 쿼리와 표현이 달라도 개념적으로 관련된 노트를 찾음 |
 | `read_note` | `content`, frontmatter, 링크, 태그를 구조화해 반환하고 줄 단위 페이지네이션 지원 |
 | `list_notes` | 폴더 범위와 페이지네이션을 지원하는 명시적 노트 목록 |
 | `list_folder` | 한 폴더 바로 아래의 하위 폴더·노트·첨부파일 목록 |
@@ -68,7 +70,7 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 | `find_orphans` | 입출력 링크가 없는 노트 검색 |
 | `find_unresolved` | 아직 존재하지 않는 링크 검색 |
 | `find_path` | 두 노트 사이의 최단 연결 경로 검색 |
-| `get_related` | 직접 링크되지 않았지만 유사한 노트 추천 |
+| `get_related` | 직접 링크되지 않았지만 유사한 노트 추천 — 기본은 태그·이웃 Jaccard, `method: "semantic"`이면 임베딩 유사도 |
 | `get_hotkeys`, `get_obsidian_settings` | 저장된 command ID·단축키, 템플릿 폴더, core plugin 설정 조회 |
 | `validate_base` | `.base` 또는 fenced Base YAML의 정적 구문·구조 검증 |
 
@@ -121,7 +123,7 @@ npx -y obsidian-everywhere doctor /절대/경로/내/vault
 | | **Obsidian Everywhere** | [obsidian-mcp-server](https://github.com/cyanheads/obsidian-mcp-server) | [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) | [TurboVault](https://github.com/epistates/turbovault) |
 |---|---|---|---|---|
 | 설치 | `npx` | `npx` | Obsidian community plugin | `cargo install` / binary |
-| 공개된 도구 수 | **35** | 14 | 16 | 74 |
+| 공개된 도구 수 | **36** | 14 | 16 | 74 |
 | Obsidian 실행 필요 | **아니요** | 예 | 예 | **아니요** |
 | 대표 그래프 기능 | PageRank·최단 경로·n-hop·미해결 링크 | 구조화 읽기의 outgoing links | 실행 중인 Obsidian metadata/search | multi-hop·centrality·cluster·추천 |
 | 안전한 편집 | 부분 편집·bulk dry-run·snapshot·rollback | 정밀 편집·frontmatter/tag 관리 | live heading/block/frontmatter patch | conflict hash·audit rollback·Git batch |

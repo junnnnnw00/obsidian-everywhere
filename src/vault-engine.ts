@@ -1,6 +1,13 @@
 import type { FSWatcher } from "chokidar";
 import { VaultGraph } from "./graph/graph.js";
 import { VaultDB } from "./index/db.js";
+import {
+  defaultEmbedder,
+  noteEmbeddingText,
+  vectorToBuffer,
+  EMBEDDING_MODEL,
+  type Embedder,
+} from "./index/embeddings.js";
 import { applyFileDelete, applyFileUpsert, fullScan, type ScanResult } from "./index/scan.js";
 import { DEFAULT_EXCLUDE_DIRS } from "./vault/paths.js";
 import { waitForStableVaultListing } from "./vault/wait-for-mount.js";
@@ -10,6 +17,8 @@ export interface VaultEngineOptions {
   vaultDir: string;
   dbPath: string;
   excludeDirs?: string[];
+  /** Injectable for tests; defaults to the real transformers.js-backed embedder (lazily loaded on first use). */
+  embedder?: Embedder;
 }
 
 /**
@@ -21,6 +30,7 @@ export class VaultEngine {
   readonly graph: VaultGraph;
   readonly vaultDir: string;
   private readonly excludeDirs: string[];
+  private readonly embedder: Embedder;
   private watcher: FSWatcher | null = null;
 
   constructor(options: VaultEngineOptions) {
@@ -28,6 +38,7 @@ export class VaultEngine {
     this.excludeDirs = options.excludeDirs ?? DEFAULT_EXCLUDE_DIRS;
     this.db = new VaultDB(options.dbPath);
     this.graph = new VaultGraph();
+    this.embedder = options.embedder ?? defaultEmbedder;
   }
 
   /**
@@ -66,6 +77,35 @@ export class VaultEngine {
     const result = fullScan(this.db, this.vaultDir, this.excludeDirs);
     this.graph.loadFull(this.db);
     return result;
+  }
+
+  /**
+   * Computes and stores embeddings for up to `limit` markdown files that
+   * don't have a current one (new files, or files changed since their last
+   * embedding -- see VaultDB.upsertFts). Deliberately not run during
+   * init()/fullScan()/the watcher: embedding is comparatively expensive and
+   * most vaults never touch a semantic tool in a given session, so the cost
+   * is paid lazily by the tools that actually need it (semantic_search,
+   * get_related's semantic method), bounded per call so one request can't
+   * block indefinitely on a large backlog. See DECISIONS.md D20.
+   */
+  async ensureEmbeddingsFresh(limit: number): Promise<{ embedded: number; remaining: number }> {
+    const pending = this.db.getFilesNeedingEmbedding(EMBEDDING_MODEL, limit);
+    if (pending.length === 0) return { embedded: 0, remaining: 0 };
+    const vectors = await this.embedder(
+      pending.map((f) => noteEmbeddingText(f)),
+      "passage",
+    );
+    for (let i = 0; i < pending.length; i++) {
+      this.db.upsertEmbedding(pending[i]!.id, EMBEDDING_MODEL, vectorToBuffer(vectors[i]!));
+    }
+    return { embedded: pending.length, remaining: this.db.countFilesNeedingEmbedding(EMBEDDING_MODEL) };
+  }
+
+  /** Embeds a free-text search query with the "query" prefix e5 models expect (asymmetric vs. the "passage" prefix notes are embedded with). */
+  async embedQuery(text: string): Promise<Float32Array> {
+    const [vector] = await this.embedder([text], "query");
+    return vector!;
   }
 
   watch(onEvent?: (event: WatchEvent) => void): void {

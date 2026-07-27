@@ -58,7 +58,7 @@ vault (.md files)
 SQLite index (FTS5)  ⇄  in-memory graph (graphology)
   │                       n-hop · shortest path · PageRank
   ▼
-35 MCP tools
+36 MCP tools
   │
   ▼
 stdio  ·  bearer-token HTTP  ·  OAuth HTTP
@@ -69,11 +69,16 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
   with full-text search, and an in-memory [graphology](https://graphology.github.io/)
   layer for n-hop traversal, shortest paths, and PageRank — kept in sync
   incrementally as files change, never rebuilt from scratch.
-- 🛠️ **35 graph-native MCP tools** — graph navigation, structured/paginated reads, safe lifecycle and partial edits, rollback-capable bulk cleanup, regex/listing, Base checks, and persisted Obsidian settings.
+- 🛠️ **36 graph-native MCP tools** — graph navigation, structured/paginated reads, safe lifecycle and partial edits, rollback-capable bulk cleanup, regex/listing, Base checks, and persisted Obsidian settings.
 - 🔌 **Three ways to connect** — stdio for local MCP clients (including
   Codex CLI, ChatGPT Desktop, and Claude), Streamable HTTP with a static
   bearer token for private remote clients, and Streamable HTTP with OAuth
   2.1 (PKCE + Dynamic Client Registration) for public connectors.
+- 🧠 **Local semantic search** — `semantic_search` and `get_related`'s
+  `method: "semantic"` run a small multilingual embedding model
+  (`multilingual-e5-small`) entirely on your machine — no API key, cloud
+  account, or Ollama process to run. Downloads once (~120MB, cached under
+  `~/.obsidian-everywhere/`), then works fully offline.
 
 <details>
 <summary><strong>Full tool list</strong></summary>
@@ -84,6 +89,7 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 |---|---|
 | `vault_overview` | Note counts, top tags, PageRank hub notes, recently modified — a starting orientation |
 | `search_notes` | Full-text search with tag/folder filters (with a trigram fallback for CJK substring matches unicode61 alone would miss — see DECISIONS.md D9), each result annotated with link counts and tags |
+| `semantic_search` | Meaning-based search via local embeddings (`multilingual-e5-small`, no external service) — finds conceptually related notes that don't share the query's exact words |
 | `read_note` | Structured content/frontmatter/links/tags plus line pagination; optional heading-scoped read |
 | `list_notes` | Explicit folder-aware note listing with pagination |
 | `list_folder` | Immediate child folders, notes, and attachments |
@@ -96,7 +102,7 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 | `find_orphans` | Notes with no incoming or outgoing links |
 | `find_unresolved` | Links that don't resolve to any note, grouped by target |
 | `find_path` | Shortest connection path between two notes, with a one-line summary per hop |
-| `get_related` | Similar notes that *aren't* directly linked yet (Jaccard similarity over shared tags/neighbors) |
+| `get_related` | Similar notes that *aren't* directly linked yet — Jaccard over shared tags/neighbors by default, or `method: "semantic"` for embedding similarity |
 | `get_hotkeys` / `get_obsidian_settings` | Persisted hotkey command IDs, Templates folder, and core-plugin settings |
 | `validate_base` | Static YAML/shape validation for `.base` files or fenced Base blocks |
 
@@ -155,7 +161,7 @@ you work rather than assuming one server wins every category.
 | | **Obsidian Everywhere** | [obsidian-mcp-server](https://github.com/cyanheads/obsidian-mcp-server) | [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) | [TurboVault](https://github.com/epistates/turbovault) |
 |---|---|---|---|---|
 | Install | `npx` | `npx` | Obsidian community plugin | `cargo install` / binary |
-| Published tools | **35** | 14 | 16 | 74 |
+| Published tools | **36** | 14 | 16 | 74 |
 | Obsidian must be open | **No** | Yes | Yes | **No** |
 | Best graph capability | PageRank, shortest path, n-hop, unresolved links | Outgoing links in structured reads | Live Obsidian metadata/search | Multi-hop, centrality, clusters, suggestions |
 | Safe editing | Partial edits; bulk dry-run, snapshot, rollback | Surgical edits and frontmatter/tag management | Live heading/block/frontmatter patching | Conflict hashes, audit rollback, Git-backed batch |
@@ -228,7 +234,7 @@ codex mcp list
 Then restart ChatGPT Desktop (or the IDE extension). In ChatGPT Desktop you
 can also add it through **Settings → MCP servers → Add server**, choose
 **STDIO**, and enter the same command and arguments. Type `/mcp` in Codex to
-confirm that the server and its 35 tools are connected.
+confirm that the server and its 36 tools are connected.
 
 For a project-scoped configuration instead, add this to a trusted project's
 `.codex/config.toml`; use `~/.codex/config.toml` to make it available globally:

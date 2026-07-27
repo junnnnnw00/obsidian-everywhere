@@ -71,6 +71,7 @@ describe("MCP stdio-layer tool server", () => {
       "replace_text",
       "rollback_bulk_edit",
       "search_notes",
+      "semantic_search",
       "set_hotkey",
       "set_templates_folder",
       "update_frontmatter",

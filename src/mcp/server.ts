@@ -294,14 +294,31 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
     {
       title: "Get Related",
       description:
-        "Recommend similar notes that are NOT directly linked to the given note, based on Jaccard similarity of shared tags and shared 1-hop neighbors. Use this to surface notes that probably should be linked but aren't yet.",
+        "Recommend similar notes that are NOT directly linked to the given note. Default method 'jaccard' uses shared tags and shared 1-hop neighbors, to surface notes that probably should be linked but aren't yet. Method 'semantic' instead uses embedding similarity (meaning-based, not requiring shared tags/links at all) -- lazily computes/caches embeddings on first use, which may add latency and returns fewer results until the vault is fully embedded.",
       inputSchema: {
         path: z.string().describe("Note path, title, or alias."),
         limit: z.number().int().positive().max(50).optional().describe("Max results (default 5)."),
+        method: z.enum(["jaccard", "semantic"]).optional().describe("Similarity method (default jaccard)."),
       },
       annotations: READ_ONLY,
     },
-    async (args) => textResult(tools.getRelated(engine, args)),
+    async (args) => textResult(await tools.getRelated(engine, args)),
+  );
+
+  server.registerTool(
+    "semantic_search",
+    {
+      title: "Semantic Search",
+      description:
+        "Meaning-based search via embedding similarity (multilingual-e5-small) -- finds conceptually related notes even when they don't share the query's exact words, unlike search_notes' full-text matching. Lazily computes/caches embeddings on first use (up to 50 notes per call); if the vault isn't fully embedded yet, the response says how many notes remain and results may be incomplete until a later call finishes indexing them.",
+      inputSchema: {
+        query: z.string().min(1).describe("Free-text search query."),
+        limit: z.number().int().positive().max(50).optional().describe("Max results (default 10)."),
+        folder: z.string().optional().describe("Optional vault-relative folder scope."),
+      },
+      annotations: READ_ONLY,
+    },
+    async (args) => textResult(await tools.semanticSearch(engine, args)),
   );
 
   server.registerTool(

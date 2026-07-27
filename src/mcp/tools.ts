@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import matter from "gray-matter";
 import type { FileRow } from "../index/db.js";
+import { EMBEDDING_MODEL, bufferToVector, cosineSimilarity } from "../index/embeddings.js";
 import { parseNote } from "../parser/markdown.js";
 import { resolveLink } from "../vault/resolve.js";
 import { basenameNoExt, resolveExistingVaultPath, toSafeVaultRelPath } from "../vault/paths.js";
@@ -94,6 +95,55 @@ export function searchNotes(engine: VaultEngine, args: SearchNotesArgs): string 
     lines.push("");
   }
   return lines.join("\n").trim();
+}
+
+/** Notes embedded per semantic tool call before returning, bounding how much one request can add to a large backlog's latency. */
+const EMBEDDING_BATCH_LIMIT = 50;
+
+export interface SemanticSearchArgs {
+  query: string;
+  limit?: number;
+  folder?: string;
+}
+
+/** Meaning-based search via embedding cosine similarity -- finds conceptually related notes that don't share the query's exact words, unlike search_notes' FTS5 matching. */
+export async function semanticSearch(engine: VaultEngine, args: SemanticSearchArgs): Promise<string> {
+  const query = args.query?.trim();
+  if (!query) return "Error: query must not be empty.";
+  const limit = args.limit ?? 10;
+  const folder = args.folder?.replace(/^\/+|\/+$/g, "");
+
+  const { embedded, remaining } = await engine.ensureEmbeddingsFresh(EMBEDDING_BATCH_LIMIT);
+  const queryVector = await engine.embedQuery(query);
+  const scored = engine.db
+    .getAllEmbeddings(EMBEDDING_MODEL)
+    .map((row) => ({ fileId: row.fileId, score: cosineSimilarity(queryVector, bufferToVector(row.vector)) }))
+    .sort((a, b) => b.score - a.score);
+
+  const results: { file: FileRow; score: number }[] = [];
+  for (const { fileId, score } of scored) {
+    if (results.length >= limit) break;
+    const file = engine.db.getFileById(fileId);
+    if (!file) continue;
+    if (folder && !file.path.startsWith(`${folder}/`)) continue;
+    results.push({ file, score });
+  }
+
+  const lines = [`# Semantic Search Results (${results.length})`, ""];
+  if (remaining > 0) {
+    lines.push(
+      `_${remaining} note(s) not yet embedded (embedded ${embedded} just now); results may be incomplete. Call again to index more._`,
+      "",
+    );
+  }
+  if (results.length === 0) {
+    lines.push("_No semantically similar notes found._");
+    return lines.join("\n");
+  }
+  for (const { file, score } of results) {
+    lines.push(`## [[${file.path}]]${file.title ? ` — ${file.title}` : ""} (similarity ${score.toFixed(3)})`);
+  }
+  return lines.join("\n");
 }
 
 export interface ListNotesArgs {
@@ -548,6 +598,7 @@ export function findPath(engine: VaultEngine, args: FindPathArgs): string {
 export interface GetRelatedArgs {
   path: string;
   limit?: number;
+  method?: "jaccard" | "semantic";
 }
 
 function featureSet(engine: VaultEngine, fileId: number): Set<string> {
@@ -568,11 +619,52 @@ function jaccard(a: Set<string>, b: Set<string>): number {
   return union === 0 ? 0 : intersection / union;
 }
 
+/**
+ * Similar notes via embedding cosine similarity -- note.method === "semantic"
+ * uses this as an alternative to (not blended with) the default Jaccard
+ * method, rather than combining the two into one score: DECISIONS.md D13
+ * already rejected blending two signals with an arbitrary weight, and a
+ * third (semantic) signal would face the same objection. An explicit
+ * caller-chosen method sidesteps that without changing the default.
+ */
+async function getRelatedSemantic(engine: VaultEngine, file: FileRow, limit: number): Promise<string> {
+  await engine.ensureEmbeddingsFresh(EMBEDDING_BATCH_LIMIT);
+  const ownEmbedding = engine.db.getEmbedding(file.id, EMBEDDING_MODEL);
+  if (!ownEmbedding) {
+    return `# Related to ${file.path}\n\n_This note's embedding isn't ready yet (embedding runs incrementally) — try again._`;
+  }
+  const ownVector = bufferToVector(ownEmbedding);
+  const scored = engine.db
+    .getAllEmbeddings(EMBEDDING_MODEL)
+    .filter((row) => row.fileId !== file.id)
+    .map((row) => ({ fileId: row.fileId, score: cosineSimilarity(ownVector, bufferToVector(row.vector)) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+
+  if (scored.length === 0) {
+    return `# Related to ${file.path}\n\n_No semantically similar notes found._`;
+  }
+  const lines = [
+    `# Related to ${file.path}`,
+    "",
+    "_Similar by embedding similarity (multilingual-e5-small), not shared tags/links:_",
+    "",
+  ];
+  for (const { fileId, score } of scored) {
+    const f = engine.db.getFileById(fileId);
+    if (!f) continue;
+    lines.push(`- [[${f.path}]]${f.title ? ` — ${f.title}` : ""} (similarity ${score.toFixed(3)})`);
+  }
+  return lines.join("\n");
+}
+
 /** Similar notes via Jaccard similarity of {shared tags} ∪ {shared 1-hop neighbors} — deliberately not requiring a direct link. */
-export function getRelated(engine: VaultEngine, args: GetRelatedArgs): string {
+export async function getRelated(engine: VaultEngine, args: GetRelatedArgs): Promise<string> {
   const file = resolveNoteArg(engine, args.path);
   if (!file) return `Note not found: ${args.path}`;
   const limit = args.limit ?? 5;
+
+  if (args.method === "semantic") return getRelatedSemantic(engine, file, limit);
 
   const { nodes: directNeighbors } = engine.graph.neighborhood(file.id, 1);
   const directNeighborIds = new Set(directNeighbors.map((n) => n.id));
