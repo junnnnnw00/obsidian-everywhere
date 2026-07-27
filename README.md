@@ -13,8 +13,13 @@
 [![MCP](https://img.shields.io/badge/MCP-server-6b4fbb)](https://modelcontextprotocol.io)
 [![npm](https://img.shields.io/npm/v/obsidian-everywhere?logo=npm)](https://www.npmjs.com/package/obsidian-everywhere)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![junnnnnw00/obsidian-everywhere MCP server](https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere/badges/score.svg)](https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere)
 
 *Codex CLI · ChatGPT Desktop (Codex) · Claude Code/Desktop · remote clients — one server, every surface.*
+
+<a href="https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere">
+  <img width="330" height="60" src="https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere/badges/score.svg" alt="Glama quality score" />
+</a>
 
 </div>
 

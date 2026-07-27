@@ -8,6 +8,10 @@
 
 *Codex CLI · ChatGPT Desktop(Codex) · Claude Code/Desktop · 원격 클라이언트 — 하나의 서버로 모든 환경에서.*
 
+<a href="https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere">
+  <img width="330" height="60" src="https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere/badges/score.svg" alt="Glama quality score" />
+</a>
+
 </div>
 
 ![Obsidian Everywhere — 모든 MCP 클라이언트에서 vault를 그래프로 활용](assets/social-preview.jpg)
