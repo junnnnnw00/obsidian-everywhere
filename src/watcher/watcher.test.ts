@@ -127,6 +127,10 @@ describe("startWatcher (real fs events)", () => {
       () => {
         const outlinks = db.getOutlinks("Ambiguous Resolution Test.md");
         expect(outlinks[0]?.targetPath).toBe("Folder2/Same Name.md");
+        // A rename is delivered as independent unlink + add events. Do not
+        // declare the round trip complete after only the unlink half.
+        expect(db.getFileByPath("Folder1/Same Name.md")).toBeUndefined();
+        expect(db.getFileByPath("Folder1/Zzz Renamed.md")).toBeDefined();
       },
       { timeout: 10000, interval: 50 },
     );

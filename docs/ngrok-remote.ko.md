@@ -43,7 +43,7 @@ OAuth transport를 권장합니다.
 
 ## 준비 사항
 
-- vault를 읽을 수 있는 컴퓨터에 Node.js 20–26
+- vault를 읽을 수 있는 컴퓨터에 Node.js 20.9–26
 - [ngrok 계정과 agent](https://ngrok.com/download)
 - 고정 ngrok 개발/custom domain. 현재 무료 계정에는 할당된 개발 domain
   하나가 제공되므로 dashboard에서 정확한 hostname을 확인합니다.

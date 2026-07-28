@@ -82,6 +82,9 @@ add events under parallel test I/O, even with a longer timeout. That made
 otherwise-correct index/graph tests flaky. Polling still observes real
 filesystem changes and is the path this project's primary external-drive
 deployment actually runs; Linux CI continues to exercise native inotify.
+Rename assertions wait for both independent unlink and add halves before
+checking the final index, rather than assuming link re-resolution implies the
+new path has already been indexed.
 **Alternatives:** Increase the timeout again — rejected because a missing event
 does not arrive merely by waiting longer. Mock all watcher events — rejected
 because it would remove real filesystem integration coverage.

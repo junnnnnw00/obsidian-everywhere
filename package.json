@@ -32,7 +32,7 @@
     "obsidian-everywhere-oauth-http": "dist/oauth-http-cli.js"
   },
   "engines": {
-    "node": "20.x || 22.x || 23.x || 24.x || 25.x || 26.x"
+    "node": ">=20.9.0 <21 || 22.x || 23.x || 24.x || 25.x || 26.x"
   },
   "files": [
     "dist",
@@ -59,7 +59,9 @@
     "access": "public"
   },
   "overrides": {
-    "@hono/node-server": "^2.0.12"
+    "@hono/node-server": "^2.0.12",
+    "adm-zip": "^0.6.0",
+    "sharp": "^0.35.0"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",

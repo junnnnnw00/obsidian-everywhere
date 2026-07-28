@@ -30,6 +30,9 @@ project doesn't yet follow strict semver pre-1.0.
   TLS-terminating public tunnel as well as a private network.
 - `/healthz` returns `503` while guarded content may be stale, and guarded MCP
   writes fail closed during `unavailable` and `reconciling` states.
+- Patched transitive `sharp` and `adm-zip` dependencies are enforced with npm
+  overrides, clearing the two high-severity Dependabot alerts inherited
+  through `@huggingface/transformers`.
 
 ## [0.6.0] — 2026-07-27
 

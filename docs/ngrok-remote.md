@@ -44,7 +44,7 @@ transport described in [deploy.md](deploy.md).
 
 ## Prerequisites
 
-- Node.js 20–26 on the machine that can read the vault.
+- Node.js 20.9–26 on the machine that can read the vault.
 - An [ngrok account and agent](https://ngrok.com/download).
 - A stable ngrok development or custom domain. Current free accounts receive
   one assigned development domain; check the ngrok dashboard for its exact
