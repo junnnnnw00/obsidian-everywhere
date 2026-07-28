@@ -1,5 +1,6 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import express, { type Express, type NextFunction, type Request, type RequestHandler, type Response } from "express";
+import { rateLimit } from "express-rate-limit";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { createServer } from "../mcp/server.js";
@@ -13,17 +14,41 @@ export interface HttpAppOptions {
 }
 
 function bearerAuth(bearerToken: string): RequestHandler {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    const header = req.headers.authorization;
-    if (!header || !header.startsWith("Bearer ") || header.slice("Bearer ".length) !== bearerToken) {
-      res.status(401).json({
+  const failedAuthLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 30,
+    // This is a single-user endpoint. A global bucket avoids trusting
+    // proxy-provided client IP headers differently across ngrok, Tailscale,
+    // reverse proxies, and direct local tests.
+    keyGenerator: () => "global",
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    handler: (_req, res) => {
+      res.status(429).json({
         jsonrpc: "2.0",
-        error: { code: -32001, message: "Unauthorized: missing or invalid bearer token" },
+        error: { code: -32002, message: "Too many failed authentication attempts" },
         id: null,
       });
-      return;
+    },
+  });
+  const expected = createHash("sha256").update(bearerToken).digest();
+
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const header = req.headers.authorization;
+    const supplied = createHash("sha256")
+      .update(header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : "")
+      .digest();
+    if (!timingSafeEqual(expected, supplied)) {
+      failedAuthLimiter(req, res, () => {
+        res.status(401).json({
+          jsonrpc: "2.0",
+          error: { code: -32001, message: "Unauthorized: missing or invalid bearer token" },
+          id: null,
+        });
+      });
+    } else {
+      next();
     }
-    next();
   };
 }
 
@@ -86,8 +111,15 @@ export function createHttpApp(engine: VaultEngine, options: HttpAppOptions): Exp
 
   mountMcpEndpoint(app, engine, bearerAuth(options.bearerToken), { enableWriteTools: options.enableWriteTools });
 
-  app.get("/healthz", (_req, res) => {
-    res.status(200).json({ ok: true });
+  app.get("/healthz", async (_req, res) => {
+    await engine.checkMountNow();
+    const status = engine.getStatus();
+    const ok = !status.stale;
+    res.status(ok ? 200 : 503).json({
+      ok,
+      vaultState: status.mountState,
+      mountGuardEnabled: status.mountGuardEnabled,
+    });
   });
 
   return app;

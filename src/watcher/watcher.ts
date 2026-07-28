@@ -20,6 +20,13 @@ export interface StartWatcherOptions {
   excludeDirs?: string[];
   onEvent?: (event: WatchEvent) => void;
   onReady?: () => void;
+  /** Return false to preserve an indexed file instead of applying an unlink. */
+  shouldHandleUnlink?: () => boolean;
+  onSkippedUnlink?: (path: string) => void;
+  /** Override platform/env polling selection, primarily for deterministic tests. */
+  usePolling?: boolean;
+  /** Polling interval override in milliseconds. */
+  pollingIntervalMs?: number;
 }
 
 /**
@@ -32,12 +39,13 @@ export interface StartWatcherOptions {
 export function startWatcher(options: StartWatcherOptions): FSWatcher {
   const excludeDirs = options.excludeDirs ?? DEFAULT_EXCLUDE_DIRS;
   const isExternalVolume = options.vaultDir.startsWith("/Volumes/");
-  const usePolling = process.env.CHOKIDAR_USEPOLLING === "true" || isExternalVolume;
+  const usePolling = options.usePolling ?? (process.env.CHOKIDAR_USEPOLLING === "true" || isExternalVolume);
+  const pollingIntervalMs = options.pollingIntervalMs ?? 2000;
 
   const watcher = chokidar.watch(options.vaultDir, {
     ignoreInitial: true,
     usePolling,
-    ...(usePolling ? { interval: 2000, binaryInterval: 3000 } : {}),
+    ...(usePolling ? { interval: pollingIntervalMs, binaryInterval: Math.max(pollingIntervalMs, 3000) } : {}),
     ignored: (filePath: string) => {
       const rel = toPosixPath(path.relative(options.vaultDir, filePath));
       return rel !== "" && shouldExclude(rel, excludeDirs);
@@ -46,6 +54,10 @@ export function startWatcher(options: StartWatcherOptions): FSWatcher {
 
   const handle = (type: WatchEventType, absPath: string): void => {
     try {
+      if (type === "unlink" && options.shouldHandleUnlink && !options.shouldHandleUnlink()) {
+        options.onSkippedUnlink?.(absPath);
+        return;
+      }
       const rel = toPosixPath(path.relative(options.vaultDir, absPath));
       const scanResult =
         type === "unlink" ? applyFileDelete(options.db, rel) : applyFileUpsert(options.db, options.vaultDir, rel);

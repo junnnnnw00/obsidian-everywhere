@@ -2,9 +2,10 @@
 #
 # Two independent services share the same vault:
 #
-#   obsidian-everywhere       — static bearer token, for remote Claude Code
-#                                (e.g. from your MacBook) over Tailscale.
-#                                Do NOT publish this port publicly.
+#   obsidian-everywhere       — static bearer token Remote Vault Bridge,
+#                                reached over a private network or through a
+#                                TLS-terminating tunnel. Do NOT publish this
+#                                plaintext port directly.
 #
 #   obsidian-everywhere-oauth — OAuth 2.1, for the claude.ai web/mobile
 #                                custom connector. This one is meant to be
@@ -28,6 +29,8 @@ services:
       OBSIDIAN_EVERYWHERE_DB: /vault/.obsidian-everywhere/index-http.db
       OBSIDIAN_EVERYWHERE_TOKEN: ${OBSIDIAN_EVERYWHERE_TOKEN:?set a bearer token in .env}
       OBSIDIAN_EVERYWHERE_READONLY: ${OBSIDIAN_EVERYWHERE_READONLY:-false}
+      OBSIDIAN_EVERYWHERE_MOUNT_GUARD: ${OBSIDIAN_EVERYWHERE_MOUNT_GUARD:-false}
+      OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL: ${OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL:-}
       PORT: "3737"
     volumes:
       - ${OBSIDIAN_VAULT_HOST_PATH:?set your vault's host path in .env}:/vault
@@ -45,6 +48,8 @@ services:
       OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:?set your public HTTPS origin in .env, e.g. from Cloudflare Tunnel}
       OAUTH_LOGIN_SECRET: ${OAUTH_LOGIN_SECRET:?set a login secret in .env}
       OAUTH_ENABLE_WRITE_TOOLS: ${OAUTH_ENABLE_WRITE_TOOLS:-false}
+      OBSIDIAN_EVERYWHERE_MOUNT_GUARD: ${OBSIDIAN_EVERYWHERE_MOUNT_GUARD:-false}
+      OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL: ${OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL:-}
       PORT: "3738"
     volumes:
       - ${OBSIDIAN_VAULT_HOST_PATH:?set your vault's host path in .env}:/vault

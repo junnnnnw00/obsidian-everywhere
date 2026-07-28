@@ -4,6 +4,33 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project doesn't yet follow strict semver pre-1.0.
 
+## [Unreleased]
+
+### Added
+
+- **Remote Vault Bridge** is now a first-class deployment path: an external
+  Claude Code, Codex, or other Streamable HTTP client can use graph,
+  full-text/semantic retrieval, context bundles, and guarded write tools
+  against a vault that remains on the user's machine. New English and Korean
+  ngrok tutorials cover read-only-first rollout, stable domains, automatic
+  services, validation, writes, rotation, troubleshooting, and security.
+- `vault_status` reports mount state, index freshness, indexed counts, write
+  availability, configured sentinel, and last full reconciliation.
+- Opt-in Beta mount guard (`OBSIDIAN_EVERYWHERE_MOUNT_GUARD=true`) for
+  removable drives, NAS shares, and container mounts. Startup fails closed on
+  an unavailable mount; runtime unlink storms preserve the index; writes are
+  blocked while stale; and a returning mount triggers full reconciliation.
+  Guarded scans also verify the mount again before committing, so a mount loss
+  during reconciliation rolls the index transaction back.
+
+### Security
+
+- Static bearer authentication now uses constant-time digest comparison and
+  rate-limits failed attempts, making the HTTP transport suitable behind a
+  TLS-terminating public tunnel as well as a private network.
+- `/healthz` returns `503` while guarded content may be stale, and guarded MCP
+  writes fail closed during `unavailable` and `reconciling` states.
+
 ## [0.6.0] — 2026-07-27
 
 ### Added

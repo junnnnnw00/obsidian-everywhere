@@ -28,7 +28,17 @@ describe("startWatcher (real fs events)", () => {
     graph.loadFull(db);
 
     await new Promise<void>((resolve) => {
-      watcher = startWatcher({ vaultDir: tmpVault, db, graph, onReady: () => resolve() });
+      watcher = startWatcher({
+        vaultDir: tmpVault,
+        db,
+        graph,
+        // macOS fsevents can omit events under parallel CI I/O. Polling is
+        // also the real production path for vaults under /Volumes. Other
+        // platforms retain native watcher coverage.
+        usePolling: process.platform === "darwin",
+        pollingIntervalMs: 50,
+        onReady: () => resolve(),
+      });
     });
   });
 
@@ -93,6 +103,20 @@ describe("startWatcher (real fs events)", () => {
   });
 
   it("re-resolves other notes' links after a rename removes a duplicate-name candidate", async () => {
+    // Exercise polling explicitly on every platform for the rename pair; this
+    // is the production path for external volumes.
+    await watcher.close();
+    await new Promise<void>((resolve) => {
+      watcher = startWatcher({
+        vaultDir: tmpVault,
+        db,
+        graph,
+        usePolling: true,
+        pollingIntervalMs: 50,
+        onReady: () => resolve(),
+      });
+    });
+
     // Before rename: unqualified [[Same Name]] resolves to Folder1 (shortest+alpha).
     const before = db.getOutlinks("Ambiguous Resolution Test.md");
     expect(before[0]?.targetPath).toBe("Folder1/Same Name.md");
@@ -109,6 +133,25 @@ describe("startWatcher (real fs events)", () => {
 
     expect(db.getFileByPath("Folder1/Same Name.md")).toBeUndefined();
     expect(db.getFileByPath("Folder1/Zzz Renamed.md")).toBeDefined();
+    expect(graph.consistencyCheck(db).ok).toBe(true);
+  });
+
+  it("can preserve an indexed file when an unlink guard rejects the event", async () => {
+    await watcher.close();
+    await new Promise<void>((resolve) => {
+      watcher = startWatcher({
+        vaultDir: tmpVault,
+        db,
+        graph,
+        shouldHandleUnlink: () => false,
+        onReady: () => resolve(),
+      });
+    });
+
+    const firstUnlink = new Promise<void>((resolve) => watcher.once("unlink", () => resolve()));
+    unlinkSync(path.join(tmpVault, "Orphan Note.md"));
+    await firstUnlink;
+    expect(db.getFileByPath("Orphan Note.md")).toBeDefined();
     expect(graph.consistencyCheck(db).ok).toBe(true);
   });
 });

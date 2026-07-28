@@ -99,6 +99,17 @@ export class VaultDB {
     return this.db.prepare("SELECT * FROM files").all() as FileRow[];
   }
 
+  getFileCounts(): { markdown: number; attachments: number } {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS total,
+                COALESCE(SUM(CASE WHEN is_markdown = 1 THEN 1 ELSE 0 END), 0) AS markdown
+         FROM files`,
+      )
+      .get() as { total: number; markdown: number };
+    return { markdown: row.markdown, attachments: row.total - row.markdown };
+  }
+
   upsertFileMeta(meta: FileMetaInput): number {
     const now = Date.now();
     const existing = this.getFileByPath(meta.path);

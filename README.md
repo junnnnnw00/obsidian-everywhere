@@ -4,7 +4,7 @@
 
 # 🧠 Obsidian Everywhere
 
-**Your Obsidian vault, as a graph, in Codex, ChatGPT, Claude, and other MCP clients.**
+**Turn linked notes into AI context — and securely bridge your local vault to agents running anywhere.**
 
 [![CI](https://github.com/junnnnnw00/obsidian-everywhere/actions/workflows/ci.yml/badge.svg)](https://github.com/junnnnnw00/obsidian-everywhere/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -15,7 +15,7 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![junnnnnw00/obsidian-everywhere MCP server](https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere/badges/score.svg)](https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere)
 
-*Codex CLI · ChatGPT Desktop (Codex) · Claude Code/Desktop · remote clients — one server, every surface.*
+*Graph context · local semantic search · safe edits · remote agents over MCP*
 
 <a href="https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere">
   <img width="330" height="60" src="https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere/badges/score.svg" alt="Glama quality score" />
@@ -23,22 +23,30 @@
 
 </div>
 
-![Obsidian Everywhere — your vault as a graph in every MCP client](assets/social-preview.jpg)
+![Obsidian Everywhere — graph and semantic context from your local vault, available to local and remote agents](assets/social-preview.jpg)
 
 ---
 
-**This is a graph server, not a markdown file server.** Your AI client shouldn't see
-your vault as "a folder of `.md` files" — it should see notes and links as a
-graph: backlink traversal, n-hop neighborhoods, and topic-centered context
-bundles are first-class tools, not an afterthought bolted onto a file
-reader. Unresolved links stay in the graph (that's a real signal about your
-vault, same as it is in Obsidian itself), and every response is structured
-for what an LLM actually needs — explicit link relationships, not just raw
-text.
+Obsidian Everywhere is built around two ideas:
+
+1. **Notes are a graph and a semantic knowledge base, not a folder of text
+   files.** Backlinks, n-hop neighborhoods, shortest paths, PageRank, full-text
+   search, and local multilingual embeddings turn a topic into focused,
+   token-budgeted context.
+2. **Your vault should be usable where your agents run.** The Remote Vault
+   Bridge exposes that same graph and its guarded write tools over authenticated
+   Streamable HTTP. A Claude Code or Codex process on another server can search,
+   reason over, append to, and reorganize a vault that remains on your own
+   machine.
+
+The local path stays the source of truth. There is no hosted copy, telemetry
+service, or mandatory cloud account. Remote access is a transport you operate,
+not a vault-sync product.
 
 ## Contents
 
 - [Features](#features)
+- [Two core capabilities](#two-core-capabilities)
 - [Try it without your vault](#try-it-without-your-vault)
 - [Why Obsidian Everywhere?](#why-obsidian-everywhere)
 - [Where does this actually run?](#where-does-this-actually-run)
@@ -58,27 +66,55 @@ vault (.md files)
 SQLite index (FTS5)  ⇄  in-memory graph (graphology)
   │                       n-hop · shortest path · PageRank
   ▼
-36 MCP tools
+39 MCP tools
   │
   ▼
-stdio  ·  bearer-token HTTP  ·  OAuth HTTP
+local stdio  ·  authenticated remote HTTP  ·  OAuth HTTP
 ```
 
-- 🧩 **Real graph engine** — a markdown parser (wikilinks, embeds,
+- 🧩 **Graph + semantic context engine** — a markdown parser (wikilinks, embeds,
   frontmatter, nested tags, headings, block references), a SQLite index
   with full-text search, and an in-memory [graphology](https://graphology.github.io/)
-  layer for n-hop traversal, shortest paths, and PageRank — kept in sync
-  incrementally as files change, never rebuilt from scratch.
-- 🛠️ **36 graph-native MCP tools** — graph navigation, structured/paginated reads, safe lifecycle and partial edits, rollback-capable bulk cleanup, regex/listing, Base checks, and persisted Obsidian settings.
-- 🔌 **Three ways to connect** — stdio for local MCP clients (including
-  Codex CLI, ChatGPT Desktop, and Claude), Streamable HTTP with a static
-  bearer token for private remote clients, and Streamable HTTP with OAuth
-  2.1 (PKCE + Dynamic Client Registration) for public connectors.
-- 🧠 **Local semantic search** — `semantic_search` and `get_related`'s
+  layer for n-hop traversal, shortest paths, and PageRank. `get_context_bundle`
+  packs a topic and its most useful neighbors into a requested token budget.
+- 🌍 **Remote Vault Bridge** — agents on an external server get the same search,
+  graph, context, and guarded editing tools over authenticated Streamable HTTP.
+  Use a private network or an HTTPS tunnel such as ngrok; the vault itself stays
+  on the machine you control.
+- 🧠 **Local semantic search** — `semantic_search` and `get_related` with
   `method: "semantic"` run a small multilingual embedding model
   (`multilingual-e5-small`) entirely on your machine — no API key, cloud
   account, or Ollama process to run. Downloads once (~120MB, cached under
   `~/.obsidian-everywhere/`), then works fully offline.
+- 🛡️ **Safe writes and resilient mounts** — partial edits, dry-run-first bulk
+  operations, rollback snapshots, recoverable deletion, and an opt-in Beta
+  mount guard. If a removable drive, NAS share, or container mount disappears,
+  the index is preserved, writes are blocked, and a full reconciliation runs
+  after it returns.
+- 🛠️ **39 graph-native MCP tools** — structured reads, graph navigation,
+  semantic retrieval, safe lifecycle operations, persisted Obsidian settings,
+  and explicit `vault_status` health reporting.
+
+## Two core capabilities
+
+### 1. Turn a linked vault into focused AI context
+
+Exact search finds the words you wrote. Semantic search finds the idea even
+when the wording or language differs. Graph traversal then explains how the
+matching notes relate. `get_context_bundle` combines those signals into a
+bounded context package instead of dumping an entire vault into the model.
+
+### 2. Use and edit that context from an external server
+
+Run Obsidian Everywhere beside the local vault, expose its HTTP endpoint through
+your private network or an HTTPS tunnel, and register the URL in the remote MCP
+client. The remote agent can read and search the local vault, then use the same
+guarded tools to create, append, move, tag, or clean up notes. The server
+reindexes each successful write before returning, so the next remote tool call
+sees the change.
+
+For the complete ngrok path, see the
+**[Remote Vault Bridge with ngrok tutorial](docs/ngrok-remote.md)**.
 
 <details>
 <summary><strong>Full tool list</strong></summary>
@@ -88,6 +124,7 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 | Tool | What it does |
 |---|---|
 | `vault_overview` | Note counts, top tags, PageRank hub notes, recently modified — a starting orientation |
+| `vault_status` | Mount availability, index freshness, write availability, and last full reconciliation |
 | `search_notes` | Full-text search with tag/folder filters (with a trigram fallback for CJK substring matches unicode61 alone would miss — see DECISIONS.md D9), each result annotated with link counts and tags |
 | `semantic_search` | Meaning-based search via local embeddings (`multilingual-e5-small`, no external service) — finds conceptually related notes that don't share the query's exact words |
 | `read_note` | Structured content/frontmatter/links/tags plus line pagination; optional heading-scoped read |
@@ -162,13 +199,13 @@ you work rather than assuming one server wins every category.
 | | **Obsidian Everywhere** | [obsidian-mcp-server](https://github.com/cyanheads/obsidian-mcp-server) | [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) | [TurboVault](https://github.com/epistates/turbovault) |
 |---|---|---|---|---|
 | Install | `npx` | `npx` | Obsidian community plugin | `cargo install` / binary |
-| Published tools | **36** | 14 | 16 | 74 |
+| Published tools | **39** | 14 | 16 | 74 |
 | Obsidian must be open | **No** | Yes | Yes | **No** |
 | Best graph capability | PageRank, shortest path, n-hop, unresolved links | Outgoing links in structured reads | Live Obsidian metadata/search | Multi-hop, centrality, clusters, suggestions |
 | Safe editing | Partial edits; bulk dry-run, snapshot, rollback | Surgical edits and frontmatter/tag management | Live heading/block/frontmatter patching | Conflict hashes, audit rollback, Git-backed batch |
 | Live app commands/current file | Persisted settings only | **Yes** | **Yes** | No |
-| Remote transport | stdio, bearer HTTP, **OAuth 2.1** | stdio, HTTP with JWT/OAuth | HTTP with API key | stdio, HTTP, WebSocket, TCP |
-| Best fit | Fast `npx`, focused LLM context, graph navigation, safe vault cleanup | Rich app-driven CRUD and Omnisearch | Direct control of a running Obsidian app | Maximum breadth, multi-vault and advanced analysis |
+| Remote transport | stdio, bearer HTTP over private network or HTTPS tunnel, **OAuth 2.1** | stdio, HTTP with JWT/OAuth | HTTP with API key | stdio, HTTP, WebSocket, TCP |
+| Best fit | Graph + semantic context from a headless vault, including guarded remote access and edits | Rich app-driven CRUD and Omnisearch | Direct control of a running Obsidian app | Maximum breadth, multi-vault and advanced analysis |
 
 Comparison checked against each project's published documentation on
 2026-07-20. A blank or narrower cell means “not documented there,” not that a
@@ -180,9 +217,10 @@ Obsidian Everywhere is designed for.
 Everything runs locally by default. There is no account, API key, hosted vault,
 or telemetry requirement.
 
-See [`docs/architecture.md`](docs/architecture.md) for how it's built and
-[`docs/deploy.md`](docs/deploy.md) for the full deployment topology
-(LaunchAgent, Docker, Cloudflare Tunnel).
+See [`docs/architecture.md`](docs/architecture.md) for how it's built,
+[`docs/deploy.md`](docs/deploy.md) for the deployment topology, and
+[`docs/ngrok-remote.md`](docs/ngrok-remote.md) for an end-to-end external
+server tutorial.
 
 ## Where does this actually run?
 
@@ -196,7 +234,7 @@ machine; only the *client* connection method changes.
 | Where you use the MCP client | What you need |
 |---|---|
 | The same machine as the vault | **stdio.** Nothing else — Codex, ChatGPT Desktop, Claude Code/Desktop, or another local client spawns the server directly. |
-| A different machine you control (a lab/work server, another laptop, an SSH box) | **Bearer-token HTTP** + a private network between the two machines (we recommend [Tailscale](https://tailscale.com/download)). |
+| A different machine you control (a lab/work server, another laptop, an SSH box) | **Bearer-token HTTP** over a private network such as [Tailscale](https://tailscale.com/download), or an HTTPS tunnel such as [ngrok](docs/ngrok-remote.md). |
 | claude.ai (web app or mobile app) | **OAuth HTTP** + a public HTTPS URL (via [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)). claude.ai runs in Anthropic's cloud, not your network, so it can't reach Tailscale or `localhost` — it needs a real public address. |
 
 You can run more than one of these at once (e.g. stdio on your laptop
@@ -235,7 +273,7 @@ codex mcp list
 Then restart ChatGPT Desktop (or the IDE extension). In ChatGPT Desktop you
 can also add it through **Settings → MCP servers → Add server**, choose
 **STDIO**, and enter the same command and arguments. Type `/mcp` in Codex to
-confirm that the server and its 36 tools are connected.
+confirm that the server and its 39 tools are connected.
 
 For a project-scoped configuration instead, add this to a trusted project's
 `.codex/config.toml`; use `~/.codex/config.toml` to make it available globally:
@@ -297,8 +335,15 @@ Add to your global Antigravity MCP configuration file (`~/.gemini/config/mcp_con
 
 ### Option B — Codex, ChatGPT Desktop, or Claude on a different machine
 
-**Step 1 — set up a private network between the two machines**, if you
-don't have one already. Easiest option is Tailscale:
+Choose one secure route to the vault machine:
+
+- **Private network:** use Tailscale and follow the steps below.
+- **Public HTTPS tunnel:** use the read-only-first
+  [ngrok Remote Vault Bridge tutorial](docs/ngrok-remote.md). Never expose
+  the local plaintext HTTP port directly.
+
+**Step 1 — set up a private network between the two machines**, if you chose
+Tailscale:
 
 ```bash
 # on BOTH the vault machine and the MCP client machine
@@ -380,6 +425,9 @@ that with no Cloudflare/OAuth involved.
 | `OAUTH_ISSUER_URL` | `oauth-http-cli.js` | Public HTTPS origin (e.g. your Cloudflare Tunnel hostname) |
 | `OAUTH_LOGIN_SECRET` | `oauth-http-cli.js` | Single-user login secret |
 | `OBSIDIAN_EVERYWHERE_READONLY` | `cli.js`, `http-cli.js` | Set to `true` to disable all write tools (default: write tools on) |
+| `OBSIDIAN_EVERYWHERE_MOUNT_GUARD` | all entrypoints | Opt-in Beta mount-loss protection and automatic reconciliation |
+| `OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL` | all entrypoints | Optional vault-relative identity path, e.g. `.obsidian/app.json` |
+| `OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS` | all entrypoints | Runtime mount probe interval (default `5000`) |
 | `OAUTH_ENABLE_WRITE_TOOLS` | `oauth-http-cli.js` | Set to `true` to enable all write tools on the public connector (default: off) |
 
 ## Development
@@ -403,12 +451,11 @@ exclusion, and Korean filenames/tags/wikilinks). It's what every test in
 
 ## Project status
 
-v0.2: full graph engine, all three transports (stdio,
-bearer-token HTTP, OAuth HTTP), 31 MCP tools including safe partial/bulk writes, and
-client setup for Codex, ChatGPT Desktop, and Claude. Browser/account steps
-such as registering a public connector and provisioning a Cloudflare Tunnel
-remain manual — see `docs/deploy.md`. Tested against both the fixture vault
-and a real 58-note personal vault with Korean content.
+Current v0.6.x includes the graph and local semantic context engine, all three
+transports (stdio, bearer HTTP, OAuth HTTP), 39 MCP tools, guarded partial and
+bulk writes, and client setup for Codex, ChatGPT Desktop, and Claude. Remote
+Vault Bridge and mount-guard are documented under **Unreleased** while they
+receive cross-platform Beta feedback before the next tagged release.
 
 ## Contributing
 

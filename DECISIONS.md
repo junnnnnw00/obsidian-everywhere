@@ -72,16 +72,25 @@ Format: Decision / Reason / Alternatives considered
 **Reason:** Spec explicitly says "Jaccard 유사도면 충분" (Jaccard is enough) — a single combined score is simpler to reason about and rank by than a weighted blend of two scores, and avoids inventing an arbitrary weighting between "shares tags" and "shares neighbors" with no data to justify a particular weight.
 **Alternatives:** Two separate scores (tag-Jaccard, neighbor-Jaccard) shown side by side — rejected as more informative but out of scope for "simple similarity recommendation," and harder to sort a single ranked list by.
 
-## D14. Watcher test `vi.waitFor` timeout raised from 5s to 10s
-**Decision:** All `vi.waitFor` calls in `src/watcher/watcher.test.ts` use a 10-second timeout (was 5s).
-**Reason:** Observed one flaky failure during the final fresh-clone gate (`npm test` right after `npm install` on a freshly cloned checkout) where the "new file" test's fsevents notification took longer than 5s to arrive — reran in isolation immediately after and it passed in under 1s. fsevents delivery latency on macOS can spike under I/O load (e.g. right after a large `npm install`), and the test asserts on a real OS-level filesystem event, not a mocked one, so some slack is warranted rather than mocking it away.
-**Alternatives:** Switch chokidar to `usePolling` in tests for deterministic timing — rejected, defeats the point of testing real fs events, and polling has its own latency (`interval` default) that doesn't obviously fix the underlying flakiness, just changes its shape.
+## D14. Watcher integration tests use platform-appropriate real events
+**Decision:** On macOS, integration tests use fast chokidar polling—the same
+production path selected for vaults under `/Volumes`. On other platforms,
+add/change/unlink tests retain native watcher coverage. The
+rename/re-resolution case explicitly uses polling everywhere.
+**Reason:** Native fsevents repeatedly omitted both rename halves and ordinary
+add events under parallel test I/O, even with a longer timeout. That made
+otherwise-correct index/graph tests flaky. Polling still observes real
+filesystem changes and is the path this project's primary external-drive
+deployment actually runs; Linux CI continues to exercise native inotify.
+**Alternatives:** Increase the timeout again — rejected because a missing event
+does not arrive merely by waiting longer. Mock all watcher events — rejected
+because it would remove real filesystem integration coverage.
 
 ## D15. Write tools (`create_note`, `append_to_note`) ship in v0.1, enabled by default — except on the public OAuth connector
 **Decision:** Implemented as real tools (not left as a "Phase 5 optional" stub). `readOnlyHint: false, destructiveHint: true` per MCP annotation conventions. Registration is gated by `enableWriteTools` (`createServer` option), which every transport can set independently:
-- stdio (`cli.ts`) and the Tailscale bearer-token HTTP transport (`http-cli.ts`): **enabled by default**, disable with `OBSIDIAN_EVERYWHERE_READONLY=true`.
+- stdio (`cli.ts`) and the bearer-token HTTP transport (`http-cli.ts`): **enabled by default**, disable with `OBSIDIAN_EVERYWHERE_READONLY=true`.
 - the OAuth/claude.ai transport (`oauth-http-cli.ts`): **disabled by default** (inverted), enable with `OAUTH_ENABLE_WRITE_TOOLS=true`.
-**Reason:** Promoted from "optional" after real usage feedback — note creation/editing is core to actually using this day to day, not a nice-to-have. The per-transport default split exists because the OAuth transport is reachable from the public internet (via claude.ai's infrastructure) and is a meaningfully larger attack surface than a Tailscale-only or local process; defaulting it to read-only and requiring an explicit opt-in is a deliberate, cheap safety margin that doesn't cost the primary (local/Tailscale) use case anything.
+**Reason:** Promoted from "optional" after real usage feedback — note creation/editing is core to actually using this day to day, not a nice-to-have. The per-transport default split exists because the OAuth transport is designed for browser-facing public connector flows and is a meaningfully larger attack surface than a local process or a single-user bearer bridge; defaulting it to read-only and requiring an explicit opt-in is a deliberate, cheap safety margin that doesn't cost the primary use case anything. A bearer bridge exposed through a public TLS tunnel should still begin read-only as an operational rollout practice (D24), even though its backward-compatible code default remains writable.
 **Safety design:** every write path goes through `toSafeVaultRelPath`/`resolveWithinVault` (`src/vault/paths.ts`) — rejects absolute paths, `.`/`..` traversal segments, and paths inside excluded directories (`.obsidian`, `.git`, ...), with a resolved-path-escapes-vault check as defense in depth. `append_to_note` fails closed (writes nothing) if a requested heading isn't found, rather than guessing where to insert. Both tools reindex synchronously via `VaultEngine.indexFileNow` right after writing, so the *next* tool call in the same conversation already sees the update — no reliance on watcher debounce timing (verified with a real-vault write/read/cleanup round trip against a live personal vault, not just the fixture).
 **Alternatives:** A single global on/off flag instead of per-transport defaults — rejected, conflates "is write functionality wanted at all" (yes) with "is this specific network exposure trusted with it" (varies by transport). Requiring path allowlisting/confirmation prompts — out of scope for v0.1; the path-safety validation plus fail-closed heading lookup covers the realistic failure modes (typos, wrong tool call) without adding a confirmation round-trip to every write.
 
@@ -129,3 +138,38 @@ Format: Decision / Reason / Alternatives considered
 **Reason:** Found live, during a real ~90-note vault reorganization: removing one redundant field (`reviewed`, superseded by file mtime) from every note required 88 individual `remove_frontmatter_field` calls looped by hand, and auditing "does every note in this folder have a consistent `status`" required a `read_note` per file since `regex_search` deliberately only searches note bodies, never frontmatter (D-scan's body/frontmatter split is intentional, not a bug — see the caller confusion this also caused, D22). Both gaps turn a one-shot bulk operation into O(n) individual tool calls with no atomicity or rollback across them.
 **Testing:** `src/mcp/write-tools.test.ts` — dry-run-then-apply-then-rollback round trips for both new tools against a real isolated vault copy, asserting only notes with an actual value change are touched; and a `list_notes` test asserting a note missing a requested property reports it as missing rather than being dropped from the result.
 **Alternatives:** Extend `bulk_replace`'s regex-over-raw-text to also cover frontmatter — rejected, YAML values aren't reliably text-replaceable (type changes, list vs scalar, quoting) the way body prose is; a dedicated frontmatter-aware merge (parse → merge → reserialize, same as the single-note `update_frontmatter`/`remove_frontmatter_field`) is the same operation `bulk_replace` already isn't used for on body prose. A generic "run this JS transform over every note's frontmatter" tool — rejected as arbitrary code execution against the vault, well outside this project's narrow, non-executable write-tool surface (see D19's Templater reasoning for the same principle applied elsewhere).
+
+## D24. Remote Vault Bridge and mount-guard are one safety boundary
+
+**Decision:** Treat authenticated remote graph/read/write access as a primary
+product capability, and ship removable/network/container mount protection as
+an opt-in Beta safety boundary around it. `VaultEngine` owns a cross-platform
+state machine (`disabled`, `healthy`, `unavailable`, `reconciling`) instead of
+putting deployment-specific `/Volumes` behavior in the MCP or watcher layer.
+The watcher asks the engine whether an unlink is safe; the engine preserves the
+persistent index on mount loss, blocks every registered write tool while stale,
+and performs a stable full reconciliation when the mount returns. Guarded full
+scans remain inside an outer SQLite transaction until a post-scan mount check
+passes, so a mid-scan disconnect rolls the index back. A
+vault-relative sentinel is optional but recommended because "directory is
+non-empty" alone cannot distinguish the intended share from an exposed fallback
+mount point. Static bearer authentication is acceptable on a public endpoint
+only behind a TLS-terminating tunnel, with a high-entropy token, constant-time
+comparison, failed-auth rate limiting, and a read-only-first deployment flow.
+
+**Reason:** A remote client being "Connected" proves only transport health. In
+a real external-drive deployment, the HTTP process twice remained healthy while
+its index contained zero notes: first because it started before the mount was
+ready, then because an active unmount produced an unlink storm. Remote writes
+make silently targeting that state unacceptable. Availability must be visible
+to the agent (`vault_status` and `vault_overview`), to operators (`/healthz`),
+and to the write boundary itself.
+
+**Alternatives:** Always enable the guard — rejected because genuinely empty
+vaults are valid and mass deletion can be intentional. Detect only macOS
+`/Volumes` paths — rejected because the same failure exists on Linux mounts,
+Windows drives, NAS shares, and Docker bind mounts. Stop serving all indexed
+reads during outage — rejected because clearly marked stale search/context can
+still be useful; writes are the operation that must fail closed. Automatically
+create a hidden sentinel — rejected because the server should not mutate a
+vault merely to identify it.

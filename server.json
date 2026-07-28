@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.junnnnnw00/obsidian-everywhere",
   "title": "Obsidian Everywhere",
-  "description": "Graph-native MCP server for reading, navigating, and safely editing Obsidian vaults.",
+  "description": "Graph and local semantic context for Obsidian, with guarded remote MCP access and edits.",
   "version": "0.6.0",
   "repository": {
     "url": "https://github.com/junnnnnw00/obsidian-everywhere",

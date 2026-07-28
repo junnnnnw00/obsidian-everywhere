@@ -43,8 +43,15 @@ export function createOAuthHttpApp(engine: VaultEngine, options: OAuthHttpAppOpt
     enableWriteTools: options.enableWriteTools,
   });
 
-  app.get("/healthz", (_req, res) => {
-    res.status(200).json({ ok: true });
+  app.get("/healthz", async (_req, res) => {
+    await engine.checkMountNow();
+    const status = engine.getStatus();
+    const ok = !status.stale;
+    res.status(ok ? 200 : 503).json({
+      ok,
+      vaultState: status.mountState,
+      mountGuardEnabled: status.mountGuardEnabled,
+    });
   });
 
   return app;

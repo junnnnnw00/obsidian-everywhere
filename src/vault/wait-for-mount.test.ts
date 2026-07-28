@@ -24,6 +24,34 @@ describe("waitForStableVaultListing", () => {
     expect(sleeps).toBe(1);
   });
 
+  it("rejects an empty listing after the timeout when requireNonEmpty is enabled", async () => {
+    let clock = 0;
+    await expect(
+      waitForStableVaultListing("/external/vault", {
+        requireNonEmpty: true,
+        timeoutMs: 500,
+        intervalMs: 100,
+        now: () => clock,
+        listDir: () => [],
+        sleep: async () => {
+          clock += 100;
+        },
+      }),
+    ).rejects.toThrow("refusing to replace the existing index with an empty scan");
+    expect(clock).toBeGreaterThanOrEqual(500);
+  });
+
+  it("waits for a non-empty stable listing when requireNonEmpty is enabled", async () => {
+    const snapshots = [[], [], ["a.md"], ["a.md"]];
+    let call = 0;
+    await waitForStableVaultListing("/external/vault", {
+      requireNonEmpty: true,
+      listDir: () => snapshots[Math.min(call++, snapshots.length - 1)],
+      sleep: async () => {},
+    });
+    expect(call).toBe(4);
+  });
+
   it("keeps polling while the listing is still changing (a mount filling in)", async () => {
     const snapshots = [[], ["a.md"], ["a.md", "b.md"], ["a.md", "b.md"], ["a.md", "b.md"]];
     let call = 0;

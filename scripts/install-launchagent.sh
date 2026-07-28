@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Installs the static-bearer-token HTTP transport as a macOS LaunchAgent,
 # so it starts at login and stays running (Host 1 in docs/architecture.md's
-# topology). This is the "remote Claude Code over Tailscale" service, NOT
-# the OAuth/claude.ai one — see docs/deploy.md.
+# topology). This is the single-user Remote Vault Bridge service for a
+# private network or TLS-terminating tunnel, NOT the OAuth/claude.ai one —
+# see docs/deploy.md and docs/ngrok-remote.md.
 #
 # Usage:
 #   OBSIDIAN_VAULT_PATH=/path/to/vault \
 #   OBSIDIAN_EVERYWHERE_TOKEN=$(openssl rand -hex 32) \
+#   OBSIDIAN_EVERYWHERE_MOUNT_GUARD=true \
 #   ./scripts/install-launchagent.sh
 
 set -euo pipefail
@@ -20,6 +22,8 @@ PLIST_DEST="$HOME/Library/LaunchAgents/${PLIST_LABEL}.plist"
 : "${OBSIDIAN_EVERYWHERE_TOKEN:?Set OBSIDIAN_EVERYWHERE_TOKEN to a secret bearer token, e.g. via openssl rand -hex 32}"
 
 NODE_BIN="$(command -v node || true)"
+MOUNT_GUARD="${OBSIDIAN_EVERYWHERE_MOUNT_GUARD:-false}"
+MOUNT_SENTINEL="${OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL:-.obsidian/app.json}"
 if [ -z "$NODE_BIN" ]; then
   echo "node not found on PATH. Install Node.js first." >&2
   exit 1
@@ -37,6 +41,8 @@ sed \
   -e "s#__INSTALL_DIR__#${INSTALL_DIR}#g" \
   -e "s#__VAULT_PATH__#${OBSIDIAN_VAULT_PATH}#g" \
   -e "s#__TOKEN__#${OBSIDIAN_EVERYWHERE_TOKEN}#g" \
+  -e "s#__MOUNT_GUARD__#${MOUNT_GUARD}#g" \
+  -e "s#__MOUNT_SENTINEL__#${MOUNT_SENTINEL}#g" \
   "$SCRIPT_DIR/../deploy/com.obsidian-everywhere.http.plist.template" > "$PLIST_DEST"
 
 UID_NUM="$(id -u)"

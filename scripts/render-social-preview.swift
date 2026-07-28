@@ -80,7 +80,7 @@ draw(
     color: NSColor(calibratedWhite: 0.84, alpha: 1)
 )
 draw(
-    "31 GRAPH-NATIVE TOOLS  •  LOCAL + REMOTE",
+    "GRAPH + SEMANTIC  •  LOCAL + REMOTE",
     rect: NSRect(x: 748, y: 154, width: 470, height: 30),
     font: NSFont.monospacedSystemFont(ofSize: 14, weight: .semibold),
     color: NSColor(calibratedRed: 0.55, green: 0.76, blue: 1.0, alpha: 1),

@@ -18,6 +18,10 @@
     <string>__TOKEN__</string>
     <key>PORT</key>
     <string>3737</string>
+    <key>OBSIDIAN_EVERYWHERE_MOUNT_GUARD</key>
+    <string>__MOUNT_GUARD__</string>
+    <key>OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL</key>
+    <string>__MOUNT_SENTINEL__</string>
     <key>PATH</key>
     <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
   </dict>

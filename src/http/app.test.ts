@@ -1,4 +1,6 @@
 import type { Server } from "node:http";
+import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -49,6 +51,25 @@ describe("Streamable HTTP transport (real listening server)", () => {
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }),
     });
     expect(res.status).toBe(401);
+  });
+
+  it("rate-limits repeated failed bearer authentication", async () => {
+    const statuses: number[] = [];
+    for (let index = 0; index < 35; index++) {
+      const res = await fetch(`${baseUrl}/mcp`, {
+        method: "POST",
+        headers: { ...JSONRPC_HEADERS, Authorization: "Bearer repeatedly-wrong" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: index, method: "initialize", params: {} }),
+      });
+      statuses.push(res.status);
+    }
+    expect(statuses).toContain(429);
+  });
+
+  it("reports healthy vault state without exposing indexed content", async () => {
+    const res = await fetch(`${baseUrl}/healthz`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, vaultState: "disabled", mountGuardEnabled: false });
   });
 
   it("runs initialize -> tools/list -> tools/call over real HTTP and manages Mcp-Session-Id", async () => {
@@ -127,5 +148,42 @@ describe("Streamable HTTP transport (real listening server)", () => {
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
     });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("mount-aware health endpoint", () => {
+  it("returns 503 without exposing vault content while a guarded mount is unavailable", async () => {
+    const tmpVault = mkdtempSync(path.join(tmpdir(), "oe-http-mount-"));
+    cpSync(vaultDir, tmpVault, { recursive: true });
+    const engine = new VaultEngine({
+      vaultDir: tmpVault,
+      dbPath: ":memory:",
+      mountGuard: { enabled: true, sentinel: ".obsidian/app.json", recheckIntervalMs: 60_000 },
+    });
+    let httpServer: Server | undefined;
+
+    try {
+      await engine.init();
+      rmSync(tmpVault, { recursive: true, force: true });
+
+      const app = createHttpApp(engine, { bearerToken: TOKEN });
+      await new Promise<void>((resolve) => {
+        httpServer = app.listen(0, () => resolve());
+      });
+      const address = httpServer.address();
+      if (typeof address !== "object" || address === null) throw new Error("no address");
+
+      const res = await fetch(`http://127.0.0.1:${address.port}/healthz`);
+      expect(res.status).toBe(503);
+      expect(await res.json()).toEqual({
+        ok: false,
+        vaultState: "unavailable",
+        mountGuardEnabled: true,
+      });
+    } finally {
+      if (httpServer) await new Promise<void>((resolve) => httpServer!.close(() => resolve()));
+      await engine.close();
+      rmSync(tmpVault, { recursive: true, force: true });
+    }
   });
 });

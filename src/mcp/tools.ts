@@ -24,6 +24,7 @@ export function resolveNoteArg(engine: VaultEngine, input: string): FileRow | un
 }
 
 export function vaultOverview(engine: VaultEngine): string {
+  const status = engine.getStatus();
   const files = engine.db.getAllFiles();
   const mdFiles = files.filter((f) => f.is_markdown === 1);
   const attachmentCount = files.length - mdFiles.length;
@@ -34,6 +35,7 @@ export function vaultOverview(engine: VaultEngine): string {
   const lines: string[] = [
     "# Vault Overview",
     "",
+    `- **Vault state**: ${status.mountState}${status.stale ? " (indexed reads may be stale; writes are blocked)" : ""}`,
     `- **Notes**: ${mdFiles.length} markdown notes, ${attachmentCount} attachments`,
     `- **Resolved links (graph edges)**: ${engine.db.countResolvedLinks()}`,
     `- **Unresolved links**: ${engine.db.findUnresolved().length}`,
@@ -50,6 +52,21 @@ export function vaultOverview(engine: VaultEngine): string {
     ...(recent.length ? recent.map((f) => `- [[${f.path}]] — ${new Date(f.mtime).toISOString()}`) : ["_no notes_"]),
   ];
   return lines.join("\n");
+}
+
+export function vaultStatus(engine: VaultEngine): string {
+  const status = engine.getStatus();
+  return [
+    "# Vault Status",
+    "",
+    `- **Mount guard**: ${status.mountGuardEnabled ? "enabled (beta)" : "disabled"}`,
+    `- **State**: ${status.mountState}`,
+    `- **Indexed content**: ${status.indexedNotes} notes, ${status.indexedAttachments} attachments`,
+    `- **Index may be stale**: ${status.stale ? "yes" : "no"}`,
+    `- **Writes allowed**: ${status.writesAllowed ? "yes" : "no"}`,
+    `- **Sentinel**: ${status.mountSentinel ?? "none (non-empty listing fallback)"}`,
+    `- **Last full reconciliation**: ${status.lastReconciledAt ?? "not yet"}`,
+  ].join("\n");
 }
 
 export interface SearchNotesArgs {

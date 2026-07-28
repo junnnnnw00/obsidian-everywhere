@@ -7,7 +7,7 @@ Obsidian Everywhere는 로컬, 사설 원격, 공개 MCP 클라이언트를 위�
 | 클라이언트 | Transport | 인증 | 실행 위치 |
 |---|---|---|---|
 | 로컬 Codex CLI / ChatGPT Desktop / Claude | stdio | 없음 | vault와 같은 컴퓨터 |
-| 원격 Codex / ChatGPT Desktop / Claude | Streamable HTTP | 정적 bearer token | Tailscale 사설망 내부 |
+| 원격 Codex / ChatGPT Desktop / Claude | Streamable HTTP | 정적 bearer token | 사설망 또는 공개 HTTPS tunnel |
 | claude.ai 웹·모바일 connector | Streamable HTTP | OAuth 2.1 | Cloudflare Tunnel 등의 공개 HTTPS |
 
 ## 1. 로컬 stdio
@@ -61,7 +61,10 @@ cp .env.example .env
 docker compose up -d obsidian-everywhere
 ```
 
-**포트 3737을 공개 인터넷에 노출하지 마세요.** 자체 TLS가 없고 하나의 정적 token으로 보호되므로 Tailscale 같은 사설망 내부에서만 사용해야 합니다.
+**포트 3737을 공개 인터넷에 직접 노출하지 마세요.** 자체 TLS가 없으므로
+사설망 또는 TLS를 종료하는 tunnel을 사용해야 합니다. 외부 서버의 읽기·쓰기
+검증, token 교체, 자동 실행과 mount 복구까지 포함한 전체 과정은
+[ngrok Remote Vault Bridge](ngrok-remote.ko.md)를 참고하세요.
 
 ## 3. claude.ai용 OAuth 및 Cloudflare Tunnel
 
@@ -132,5 +135,16 @@ vault가 외장 드라이브나 네트워크 마운트에 있고 서버가 부�
 
 - `OBSIDIAN_EVERYWHERE_MOUNT_WAIT_MS` — 목록이 안정될 때까지 기다리는 최대 시간, 이후엔 그냥 스캔을 진행 (기본값 `5000`)
 - `OBSIDIAN_EVERYWHERE_MOUNT_POLL_MS` — 목록을 다시 읽는 간격 (기본값 `200`)
+- `OBSIDIAN_EVERYWHERE_MOUNT_GUARD=true` — 자동 실행 서비스용 Beta
+  보호입니다. 시작 시 빈 mount로 기존 인덱스를 덮어쓰지 않고, 실행 중
+  mount가 사라지면 인덱스를 보존하고 쓰기를 차단하며, 복귀 후 전체
+  재조정합니다.
+- `OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL=.obsidian/app.json` — 의도한 mount가
+  연결됐을 때 반드시 존재해야 하는 vault-relative 경로. 강력 권장합니다.
+- `OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS` — 실행 중 mount 확인 간격
+  (기본값 `5000`)
+
+기존 `OBSIDIAN_EVERYWHERE_REQUIRE_NONEMPTY_VAULT=true`는 guard를 켜는
+deprecated 호환 alias로 유지됩니다.
 
 그래도 스캔 결과가 예상보다 적다면 `obsidian-everywhere doctor <vault-path>`로 실제 인식된 노트 수를 확인하세요. 드라이브가 완전히 마운트된 걸 확인한 뒤 서버를 재시작하면 `fullScan`이 새로 실행됩니다.

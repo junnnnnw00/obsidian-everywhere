@@ -30,9 +30,17 @@ it, so you don't mistake intended scope for a vulnerability:
   (`OAUTH_LOGIN_SECRET`) — not a real multi-tenant identity system. See
   DECISIONS.md D11. If you need multi-user access control, this project
   isn't (yet) the right tool.
-- **The bearer-token HTTP transport is designed to sit behind Tailscale
-  (or an equivalent private network), not the public internet.** It has
-  no rate limiting or brute-force protection on the token check.
+- **The bearer-token HTTP transport may sit behind a private network or a
+  TLS-terminating public tunnel such as ngrok.** Never expose its plaintext
+  local port directly. Bearer checks use constant-time digest comparison and
+  failed authentication is rate-limited, but the token remains a long-lived
+  single-user secret with the full tool permissions enabled for that process.
+  Use at least 32 random bytes, start read-only, rotate on disclosure, and see
+  `docs/ngrok-remote.md`.
+- **Mount-guard is defense in depth, not a backup.** When enabled, indexed
+  reads remain available but are marked stale during an outage and all writes
+  are blocked until reconciliation. A sentinel greatly reduces false mount
+  detection, but backups remain necessary for remote write access.
 - **Write tools (`create_note`/`append_to_note`) can create/overwrite
   files anywhere under the vault root.** Path-traversal protection
   (`src/vault/paths.ts`, `toSafeVaultRelPath`/`resolveWithinVault`)

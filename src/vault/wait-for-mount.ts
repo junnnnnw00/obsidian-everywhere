@@ -7,6 +7,12 @@ export interface WaitForStableVaultListingOptions {
   intervalMs?: number;
   /** Consecutive matching listings required before considering it stable. */
   stableReads?: number;
+  /**
+   * Refuse to treat an empty listing as ready. Intended for auto-started
+   * services whose vault lives on an external/network mount: starting while
+   * the mount point is still empty would otherwise wipe the persistent index.
+   */
+  requireNonEmpty?: boolean;
   /** Injectable for tests; defaults to a real top-level readdirSync. */
   listDir?: (dir: string) => string[];
   /** Injectable for tests; defaults to a real timer-based delay. */
@@ -52,18 +58,32 @@ export async function waitForStableVaultListing(
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
   const stableReads = Math.max(2, options.stableReads ?? DEFAULT_STABLE_READS);
+  const requireNonEmpty = options.requireNonEmpty ?? false;
   const listDir = options.listDir ?? defaultListDir;
   const sleep = options.sleep ?? defaultSleep;
   const now = options.now ?? Date.now;
 
   const deadline = now() + timeoutMs;
   let previous = listDir(dir);
-  let matches = 1;
+  let matches = requireNonEmpty && previous.length === 0 ? 0 : 1;
 
   while (matches < stableReads) {
-    if (now() >= deadline) return;
+    if (now() >= deadline) {
+      if (requireNonEmpty && previous.length === 0) {
+        throw new Error(
+          `Vault directory is still empty after ${timeoutMs}ms: ${dir}. ` +
+            "The mount may not be ready; refusing to replace the existing index with an empty scan.",
+        );
+      }
+      return;
+    }
     await sleep(intervalMs);
     const current = listDir(dir);
+    if (requireNonEmpty && current.length === 0) {
+      previous = current;
+      matches = 0;
+      continue;
+    }
     if (sameEntries(previous, current)) {
       matches++;
     } else {

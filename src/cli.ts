@@ -5,7 +5,7 @@ import { diagnoseVault, formatDoctorReport, generateInitOutput, runDemo, type Cl
 import { connectStdio, createServer } from "./mcp/server.js";
 import { VERSION } from "./version.js";
 import { VaultEngine } from "./vault-engine.js";
-import { writeToolsEnabledByDefault } from "./env.js";
+import { mountGuardConfigFromEnv, writeToolsEnabledByDefault } from "./env.js";
 
 function usage(): string {
   return `Obsidian Everywhere v${VERSION}
@@ -76,7 +76,7 @@ async function main(): Promise<void> {
   const { vaultDir, dbPath } = resolveConfig(command);
   mkdirSync(path.dirname(dbPath), { recursive: true });
 
-  const engine = new VaultEngine({ vaultDir, dbPath });
+  const engine = new VaultEngine({ vaultDir, dbPath, mountGuard: mountGuardConfigFromEnv() });
   await engine.init();
   engine.watch();
 

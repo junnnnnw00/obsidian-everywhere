@@ -79,6 +79,7 @@ describe("MCP stdio-layer tool server", () => {
       "update_frontmatter",
       "validate_base",
       "vault_overview",
+      "vault_status",
     ]);
     const writeToolNames = new Set([
       "add_tags",
@@ -140,6 +141,14 @@ describe("MCP stdio-layer tool server", () => {
     const text = textOf(result as any);
     expect(text).toContain("Vault Overview");
     expect(text).toContain("Hub Note.md");
+  });
+
+  it("vault_status reports index and mount-guard state", async () => {
+    const result = await client.callTool({ name: "vault_status", arguments: {} });
+    const text = textOf(result as any);
+    expect(text).toContain("Mount guard");
+    expect(text).toContain("disabled");
+    expect(text).toContain("Writes allowed");
   });
 
   it("search_notes finds notes by content and reports link/tag metadata", async () => {

@@ -1,15 +1,17 @@
 # Architecture
 
-Obsidian Everywhere is a graph server, not a file server. The design
-question at every layer was "does this let Claude reason about the vault
-as a graph," not "does this let Claude read a file."
+Obsidian Everywhere is a graph and local semantic-context server, not a
+generic file server. The design question at every layer is "does this let an
+agent reason about the vault as connected knowledge," not merely "can it read
+a file." The same engine is exposed locally or through the guarded Remote
+Vault Bridge; the transport does not change the vault model.
 
 ```
 ┌───────────────────────────────────────────────────────────┐
 │  obsidian-everywhere (single Node.js/TypeScript package)   │
 │                                                             │
 │  Vault Graph Engine                                        │
-│   parser (src/parser) → SQLite index (src/index) → watcher │
+│   parser → SQLite + FTS/embeddings → filesystem watcher    │
 │   (src/watcher)                                             │
 │   SQLite  ↔  in-memory graph (src/graph, graphology)        │
 │                                                             │
@@ -17,7 +19,7 @@ as a graph," not "does this let Claude read a file."
 │  by every transport                                        │
 │                                                             │
 │  Transport A: stdio (src/cli.ts)            ← local Claude  │
-│  Transport B: Streamable HTTP (src/http)    ← remote/HTTP   │
+│  Transport B: Streamable HTTP (src/http)    ← remote bridge │
 │      auth: static bearer token (src/http) or                │
 │            OAuth 2.1 (src/oauth)                             │
 └───────────────────────────────────────────────────────────┘
@@ -132,13 +134,24 @@ one object: `init()` (full scan + graph load), `watch()`, `close()`. This
 is what every transport (`src/cli.ts`, `src/http-cli.ts`,
 `src/oauth-http-cli.ts`) constructs and hands to the MCP tool layer.
 
+When the opt-in mount guard is enabled, `VaultEngine` also owns the vault
+availability state machine. Before applying an unlink, the platform-neutral
+watcher asks the engine whether the mount is available. An unavailable mount
+preserves the existing index, marks reads stale, and blocks MCP writes. The
+engine waits for a returning listing to stabilize, runs one transactional
+`fullScan`, reloads the graph, and only then re-enables writes. See
+DECISIONS.md D24.
+
 ## MCP Tool Layer (`src/mcp/tools.ts`, `src/mcp/server.ts`)
 
-Thirty-one tools are registered identically regardless of transport. Read tools
-cover graph navigation, structured/paginated note reads, explicit listing,
-regex search, persisted Obsidian settings, and static Base validation. Write
-tools cover creation/append, lifecycle operations, guarded partial edits,
-rollback-capable bulk replacement, and selected persisted settings.
+Twenty read tools are always available and nineteen write tools can be enabled,
+for 39 total. Their schemas and behavior are shared across transports. Read
+tools cover graph navigation, full-text and semantic retrieval,
+structured/paginated note reads, explicit listing, regex search, persisted
+Obsidian settings, mount status, and static Base validation. Write tools cover
+creation/append, lifecycle operations, guarded partial edits, frontmatter/tag
+changes, dry-run/rollback bulk operations, and persisted Obsidian
+configuration.
 `resolveNoteArg` lets every note-oriented tool accept a note
 reference as a path, bare title, or alias — it reuses the exact same
 `vault/resolve.ts` logic that in-vault links use, so "the way Claude refers

@@ -13,7 +13,7 @@ vault sync system resolve cross-host conflicts. See "Vault sync" below.
 | Client | Transport | Auth | Where it runs |
 |---|---|---|---|
 | Local Codex CLI / ChatGPT Desktop / Claude | stdio | none (local process) | Same machine as the vault |
-| Remote Codex / ChatGPT Desktop / Claude | Streamable HTTP | static bearer token | Behind Tailscale only — never expose publicly |
+| Remote Codex / ChatGPT Desktop / Claude | Streamable HTTP | static bearer token | Private network or public HTTPS tunnel |
 | claude.ai web/mobile custom connector | Streamable HTTP | OAuth 2.1 (PKCE + DCR) | Public HTTPS via a reverse proxy (Cloudflare Tunnel) |
 
 ## Topology this was built for
@@ -93,9 +93,11 @@ cp .env.example .env   # fill in OBSIDIAN_VAULT_HOST_PATH and OBSIDIAN_EVERYWHER
 docker compose up -d obsidian-everywhere
 ```
 
-**Do not expose port 3737 publicly.** It has no encryption of its own and a
-single static token — it is designed to sit behind Tailscale's private
-network, not the public internet.
+**Do not expose port 3737 directly to the public internet.** It has no TLS of
+its own. Use a private network or a TLS-terminating tunnel. For a detailed
+external-server setup with read/write validation, token rotation, automatic
+startup, and mount recovery, see
+[Remote Vault Bridge with ngrok](ngrok-remote.md).
 
 ## 3. claude.ai web/mobile custom connector (OAuth 2.1 + Cloudflare Tunnel)
 
@@ -193,6 +195,21 @@ unmountable path doesn't hang startup). Tune it with:
   stabilize before giving up and scanning anyway (default `5000`).
 - `OBSIDIAN_EVERYWHERE_MOUNT_POLL_MS` — delay between listing attempts
   (default `200`).
+- `OBSIDIAN_EVERYWHERE_MOUNT_GUARD=true` — Beta protection for auto-started
+  services, do not accept an empty mount point as a ready vault. If it is
+  still empty after the timeout, startup fails before the existing index can
+  be replaced by an empty scan, allowing the service manager to retry. While
+  running, the same guard preserves the index during an unmount and performs
+  a full reconciliation after the mount returns. It also blocks write tools
+  while state is `unavailable` or `reconciling`.
+- `OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL=.obsidian/app.json` — optional
+  vault-relative path that must exist for the intended mount to be considered
+  available. Strongly recommended.
+- `OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS` — runtime mount probe interval
+  (default `5000`).
+
+`OBSIDIAN_EVERYWHERE_REQUIRE_NONEMPTY_VAULT=true` remains a deprecated
+compatibility alias for enabling the guard.
 
 If a scan still ends up short, `obsidian-everywhere doctor <vault-path>`
 reports the note count it found — rerun it after confirming the drive is

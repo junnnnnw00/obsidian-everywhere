@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createHttpApp } from "./http/app.js";
 import { VaultEngine } from "./vault-engine.js";
-import { writeToolsEnabledByDefault } from "./env.js";
+import { mountGuardConfigFromEnv, writeToolsEnabledByDefault } from "./env.js";
 import { resolveDbPath } from "./vault/db-path.js";
 
 function resolveConfig(): { vaultDir: string; dbPath: string; port: number; bearerToken: string } {
@@ -27,7 +27,7 @@ async function main(): Promise<void> {
   const { vaultDir, dbPath, port, bearerToken } = resolveConfig();
   if (dbPath !== ":memory:") mkdirSync(path.dirname(dbPath), { recursive: true });
 
-  const engine = new VaultEngine({ vaultDir, dbPath });
+  const engine = new VaultEngine({ vaultDir, dbPath, mountGuard: mountGuardConfigFromEnv() });
   await engine.init();
   engine.watch();
 

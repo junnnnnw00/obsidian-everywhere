@@ -12,6 +12,13 @@ function textResult(text: string) {
   return { content: [{ type: "text" as const, text }] };
 }
 
+async function guardedWriteResult(engine: VaultEngine, action: () => string) {
+  await engine.checkMountNow();
+  const blocked = engine.writeBlockReason();
+  if (blocked) return { ...textResult(blocked), isError: true };
+  return textResult(action());
+}
+
 /**
  * z.object(shape) alone still silently strips unknown keys (Zod's default
  * "strip" mode) instead of rejecting them -- a caller that typos a param
@@ -51,7 +58,7 @@ const IDEMPOTENT_WRITE = {
 };
 
 export const SERVER_INSTRUCTIONS =
-  "Use vault_overview to orient yourself in an unfamiliar vault. Prefer get_context_bundle for broad topic context and read_note for one specific note or heading. Use list_folder/list_notes for file enumeration, search_notes for full-text search, and regex_search for patterns. Treat note paths as vault-relative. read_note returns structured fields and line pagination; follow pagination.nextOffset for long notes. bulk_replace defaults to dry-run and returns a rollback ID when applied. Before calling any write tool, confirm that the user intends to modify the vault; use read tools without confirmation.";
+  "Use vault_overview to orient yourself in an unfamiliar vault and vault_status when availability may have changed. Prefer get_context_bundle for broad topic context and read_note for one specific note or heading. Use list_folder/list_notes for file enumeration, search_notes for full-text search, and regex_search for patterns. Treat note paths as vault-relative. read_note returns structured fields and line pagination; follow pagination.nextOffset for long notes. bulk_replace defaults to dry-run and returns a rollback ID when applied. Before calling any write tool, confirm that the user intends to modify the vault; use read tools without confirmation. Mount-guard blocks writes while a removable/network vault is unavailable or reconciling.";
 
 export interface CreateServerOptions {
   /** Register all mutation/config write tools. Defaults to true — set to false for a read-only deployment. */
@@ -75,6 +82,21 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
       annotations: READ_ONLY,
     },
     async () => textResult(tools.vaultOverview(engine)),
+  );
+
+  server.registerTool(
+    "vault_status",
+    {
+      title: "Vault Status",
+      description:
+        "Report mount-guard state, index freshness, indexed counts, write availability, and the last full reconciliation.",
+      inputSchema: strictSchema({}),
+      annotations: READ_ONLY,
+    },
+    async () => {
+      await engine.checkMountNow();
+      return textResult(tools.vaultStatus(engine));
+    },
   );
 
   server.registerTool(
@@ -421,7 +443,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: DESTRUCTIVE_WRITE,
       },
-      async (args) => textResult(tools.createNote(engine, args)),
+      async (args) => guardedWriteResult(engine, () => tools.createNote(engine, args)),
     );
 
     server.registerTool(
@@ -443,7 +465,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: DESTRUCTIVE_WRITE,
       },
-      async (args) => textResult(tools.applyTemplate(engine, args)),
+      async (args) => guardedWriteResult(engine, () => tools.applyTemplate(engine, args)),
     );
 
     server.registerTool(
@@ -462,7 +484,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: ADDITIVE_WRITE,
       },
-      async (args) => textResult(tools.appendToNote(engine, args)),
+      async (args) => guardedWriteResult(engine, () => tools.appendToNote(engine, args)),
     );
 
     server.registerTool(
@@ -478,7 +500,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: DESTRUCTIVE_WRITE,
       },
-      async (args) => textResult(mutations.moveNote(engine, args)),
+      async (args) => guardedWriteResult(engine, () => mutations.moveNote(engine, args)),
     );
 
     server.registerTool(
@@ -493,7 +515,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: DESTRUCTIVE_WRITE,
       },
-      async (args) => textResult(mutations.renameNote(engine, args)),
+      async (args) => guardedWriteResult(engine, () => mutations.renameNote(engine, args)),
     );
 
     server.registerTool(
@@ -509,7 +531,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: DESTRUCTIVE_WRITE,
       },
-      async (args) => textResult(mutations.deleteNote(engine, args)),
+      async (args) => guardedWriteResult(engine, () => mutations.deleteNote(engine, args)),
     );
 
     server.registerTool(
@@ -532,7 +554,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: DESTRUCTIVE_WRITE,
       },
-      async (args) => textResult(mutations.replaceText(engine, args)),
+      async (args) => guardedWriteResult(engine, () => mutations.replaceText(engine, args)),
     );
 
     server.registerTool(
@@ -547,7 +569,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: IDEMPOTENT_WRITE,
       },
-      async (args) => textResult(mutations.patchSection(engine, args)),
+      async (args) => guardedWriteResult(engine, () => mutations.patchSection(engine, args)),
     );
 
     server.registerTool(
@@ -561,7 +583,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: IDEMPOTENT_WRITE,
       },
-      async (args) => textResult(mutations.updateFrontmatter(engine, args)),
+      async (args) => guardedWriteResult(engine, () => mutations.updateFrontmatter(engine, args)),
     );
 
     server.registerTool(
@@ -575,7 +597,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: IDEMPOTENT_WRITE,
       },
-      async (args) => textResult(mutations.removeFrontmatterField(engine, args)),
+      async (args) => guardedWriteResult(engine, () => mutations.removeFrontmatterField(engine, args)),
     );
 
     server.registerTool(
@@ -598,7 +620,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: DESTRUCTIVE_WRITE,
       },
-      async (args) => textResult(mutations.bulkUpdateFrontmatter(engine, args)),
+      async (args) => guardedWriteResult(engine, () => mutations.bulkUpdateFrontmatter(engine, args)),
     );
 
     server.registerTool(
@@ -621,7 +643,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: DESTRUCTIVE_WRITE,
       },
-      async (args) => textResult(mutations.bulkRemoveFrontmatterField(engine, args)),
+      async (args) => guardedWriteResult(engine, () => mutations.bulkRemoveFrontmatterField(engine, args)),
     );
 
     server.registerTool(
@@ -635,7 +657,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: ADDITIVE_WRITE,
       },
-      async (args) => textResult(mutations.addTags(engine, args)),
+      async (args) => guardedWriteResult(engine, () => mutations.addTags(engine, args)),
     );
 
     server.registerTool(
@@ -649,7 +671,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: IDEMPOTENT_WRITE,
       },
-      async (args) => textResult(mutations.removeTags(engine, args)),
+      async (args) => guardedWriteResult(engine, () => mutations.removeTags(engine, args)),
     );
 
     server.registerTool(
@@ -669,7 +691,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: DESTRUCTIVE_WRITE,
       },
-      async (args) => textResult(mutations.renameTag(engine, args)),
+      async (args) => guardedWriteResult(engine, () => mutations.renameTag(engine, args)),
     );
 
     server.registerTool(
@@ -695,7 +717,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: DESTRUCTIVE_WRITE,
       },
-      async (args) => textResult(mutations.bulkReplace(engine, args)),
+      async (args) => guardedWriteResult(engine, () => mutations.bulkReplace(engine, args)),
     );
 
     server.registerTool(
@@ -706,7 +728,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         inputSchema: strictSchema({ rollbackId: z.string().describe("Rollback ID returned by bulk_replace.") }),
         annotations: IDEMPOTENT_WRITE,
       },
-      async (args) => textResult(mutations.rollbackBulkEdit(engine, args)),
+      async (args) => guardedWriteResult(engine, () => mutations.rollbackBulkEdit(engine, args)),
     );
 
     server.registerTool(
@@ -728,7 +750,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         }),
         annotations: IDEMPOTENT_WRITE,
       },
-      async (args) => textResult(obsidianConfig.setHotkey(engine, args)),
+      async (args) => guardedWriteResult(engine, () => obsidianConfig.setHotkey(engine, args)),
     );
 
     server.registerTool(
@@ -739,7 +761,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
         inputSchema: strictSchema({ folder: z.string().min(1).describe("Vault-relative Templates folder path.") }),
         annotations: IDEMPOTENT_WRITE,
       },
-      async (args) => textResult(obsidianConfig.setTemplatesFolder(engine, args)),
+      async (args) => guardedWriteResult(engine, () => obsidianConfig.setTemplatesFolder(engine, args)),
     );
   }
 

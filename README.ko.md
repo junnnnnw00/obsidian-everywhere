@@ -4,9 +4,9 @@
 
 # 🧠 Obsidian Everywhere
 
-**Obsidian vault를 그래프로 연결해 Codex, ChatGPT, Claude와 모든 MCP 클라이언트에서 사용하세요.**
+**연결된 노트를 AI 컨텍스트로 만들고, 로컬 vault를 어디서 실행되는 에이전트와도 안전하게 연결하세요.**
 
-*Codex CLI · ChatGPT Desktop(Codex) · Claude Code/Desktop · 원격 클라이언트 — 하나의 서버로 모든 환경에서.*
+*그래프 컨텍스트 · 로컬 시맨틱 검색 · 안전한 편집 · MCP 기반 원격 에이전트*
 
 <a href="https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere">
   <img width="330" height="60" src="https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere/badges/score.svg" alt="Glama quality score" />
@@ -14,15 +14,27 @@
 
 </div>
 
-![Obsidian Everywhere — 모든 MCP 클라이언트에서 vault를 그래프로 활용](assets/social-preview.jpg)
+![Obsidian Everywhere — 로컬 vault의 그래프와 시맨틱 컨텍스트를 로컬·원격 에이전트에서 활용](assets/social-preview.jpg)
 
 ---
 
-**단순한 Markdown 파일 서버가 아니라 그래프 서버입니다.** AI는 vault를 `.md` 파일이 모인 폴더로만 보지 않습니다. 백링크 탐색, n-hop 이웃, 주제 중심 컨텍스트 번들을 통해 노트와 링크의 관계를 직접 다룹니다. 아직 존재하지 않는 링크도 Obsidian과 마찬가지로 의미 있는 신호로 그래프에 남습니다.
+Obsidian Everywhere는 두 가지 생각을 중심으로 설계되었습니다.
+
+1. **노트는 텍스트 파일 폴더가 아니라 그래프이자 의미 기반 지식베이스입니다.**
+   백링크, n-hop 이웃, 최단 경로, PageRank, 전문 검색과 로컬 다국어
+   임베딩으로 주제에 필요한 컨텍스트를 구성합니다.
+2. **에이전트가 실행되는 곳에서 내 vault를 사용할 수 있어야 합니다.**
+   Remote Vault Bridge는 같은 그래프와 보호된 쓰기 도구를 인증된
+   Streamable HTTP로 제공합니다. 외부 서버의 Claude Code나 Codex가 내
+   컴퓨터에 남아 있는 vault를 검색하고, 추론하고, 수정할 수 있습니다.
+
+로컬 vault가 계속 원본입니다. 호스팅된 사본이나 telemetry, 필수 클라우드
+계정은 없습니다. 원격 연결은 사용자가 직접 운영하는 transport입니다.
 
 ## 목차
 
 - [주요 기능](#주요-기능)
+- [두 가지 핵심 기능](#두-가지-핵심-기능)
 - [내 vault 없이 체험하기](#내-vault-없이-체험하기)
 - [왜 Obsidian Everywhere인가요?](#왜-obsidian-everywhere인가요)
 - [서버는 어디에서 실행되나요?](#서버는-어디에서-실행되나요)
@@ -40,22 +52,52 @@ vault (.md 파일)
 SQLite 인덱스 (FTS5)  ⇄  인메모리 그래프 (graphology)
   │                         n-hop · 최단 경로 · PageRank
   ▼
-36개 MCP 도구
+39개 MCP 도구
   │
   ▼
-stdio  ·  bearer-token HTTP  ·  OAuth HTTP
+로컬 stdio  ·  인증된 원격 HTTP  ·  OAuth HTTP
 ```
 
-- **실제 그래프 엔진** — wikilink, embed, frontmatter, 중첩 태그, heading, block reference를 파싱합니다. 파일 변경은 전체 재구축 없이 SQLite 인덱스와 그래프에 증분 반영됩니다.
-- **36개 MCP 도구** — 그래프 탐색, 구조화·페이지네이션 읽기, 안전한 이동·삭제·부분 편집, rollback 가능한 일괄 정리, regex/목록, Base 정적 검증과 Obsidian 저장 설정 조회·수정을 제공합니다.
-- **세 가지 연결 방식** — 로컬 클라이언트는 stdio, 사설 원격 연결은 bearer token 기반 Streamable HTTP, 공개 connector는 OAuth 2.1 기반 Streamable HTTP를 사용합니다.
+- **그래프 + 시맨틱 컨텍스트 엔진** — wikilink, embed, frontmatter,
+  중첩 태그, heading, block reference를 파싱하고 SQLite 전문 검색과
+  graphology 기반 n-hop·최단 경로·PageRank를 제공합니다.
+- **Remote Vault Bridge** — 외부 서버의 에이전트가 인증된 Streamable
+  HTTP를 통해 같은 검색·그래프·컨텍스트·편집 도구를 사용합니다. 사설망
+  또는 ngrok 같은 HTTPS tunnel을 사용하며 vault 자체는 내 컴퓨터에 남습니다.
 - **완전 로컬 시맨틱 검색** — `semantic_search`와 `get_related`의 `method: "semantic"`은 소형 다국어 임베딩 모델(`multilingual-e5-small`)을 로컬에서 실행합니다. API key, 클라우드 계정, Ollama 프로세스 필요 없음 — 최초 1회(~120MB)만 받으면 이후 완전 오프라인으로 동작합니다.
+- **안전한 쓰기와 mount 복구** — 부분 편집, dry-run 우선 일괄 작업,
+  rollback snapshot, 복구 가능한 삭제를 제공합니다. opt-in Beta mount
+  guard는 외장 드라이브·NAS·container mount가 사라지면 인덱스를 보존하고
+  쓰기를 차단한 뒤, 복귀 시 전체 재조정합니다.
+- **39개 MCP 도구** — 구조화 읽기, 그래프 탐색, 시맨틱 검색, 안전한
+  수명주기 작업, Obsidian 설정과 명시적인 `vault_status`를 제공합니다.
+
+## 두 가지 핵심 기능
+
+### 1. 연결된 vault를 집중된 AI 컨텍스트로
+
+전문 검색은 실제로 쓴 단어를 찾고, 시맨틱 검색은 표현이나 언어가 달라도
+같은 아이디어를 찾습니다. 그래프 탐색은 검색된 노트들이 어떻게 연결되는지
+설명합니다. `get_context_bundle`은 이 신호를 토큰 예산 안의 컨텍스트 묶음으로
+만들어 vault 전체를 무작정 모델에 넣지 않도록 합니다.
+
+### 2. 외부 서버에서 그 컨텍스트를 읽고 수정
+
+Obsidian Everywhere를 로컬 vault 옆에서 실행하고 HTTP endpoint를 사설망이나
+HTTPS tunnel로 노출한 뒤 원격 MCP 클라이언트에 등록합니다. 원격 에이전트는
+로컬 vault를 읽고 검색한 다음 같은 보호 도구로 노트를 생성·추가·이동·태그
+정리할 수 있습니다. 성공한 쓰기는 응답 전에 재인덱싱되므로 다음 원격 호출에
+즉시 반영됩니다.
+
+전체 과정은 **[ngrok Remote Vault Bridge 튜토리얼](docs/ngrok-remote.ko.md)**을
+참고하세요.
 
 ### 제공 도구
 
 | 읽기 도구 | 용도 |
 |---|---|
 | `vault_overview` | 노트 수, 주요 태그, PageRank 허브, 최근 수정 노트 확인 |
+| `vault_status` | mount 상태, 인덱스 freshness, 쓰기 가능 여부와 마지막 전체 재조정 확인 |
 | `search_notes` | 본문·제목 전문 검색과 태그·폴더 필터 (한글 등 CJK 복합어 부분검색은 trigram으로 보완 — DECISIONS.md D9 참고) |
 | `semantic_search` | 로컬 임베딩(`multilingual-e5-small`, 외부 서비스 없음) 기반 의미 검색 — 쿼리와 표현이 달라도 개념적으로 관련된 노트를 찾음 |
 | `read_note` | `content`, frontmatter, 링크, 태그를 구조화해 반환하고 줄 단위 페이지네이션 지원 |
@@ -82,6 +124,7 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 | `move_note`, `rename_note`, `delete_note` | 링크 갱신·백링크 보호·휴지통을 포함한 수명주기 작업 |
 | `replace_text`, `patch_section` | 정확한 문구 또는 heading 범위 부분 수정 |
 | `update_frontmatter`, `remove_frontmatter_field` | 본문을 건드리지 않는 frontmatter 수정 |
+| `bulk_update_frontmatter`, `bulk_remove_frontmatter_field` | 폴더 또는 vault 전체의 frontmatter를 dry-run·파일 수 제한·rollback과 함께 수정 |
 | `add_tags`, `remove_tags` | 노트 한 개의 frontmatter 태그 추가·삭제 |
 | `rename_tag` | vault 전체에서 frontmatter와 본문 인라인 `#태그`를 함께 이름변경, 기본 dry-run + rollback 지원 |
 | `bulk_replace`, `rollback_bulk_edit` | dry-run·파일 제한·snapshot·rollback이 있는 일괄 치환 |
@@ -89,7 +132,9 @@ stdio  ·  bearer-token HTTP  ·  OAuth HTTP
 
 stdio와 bearer-token HTTP에서는 쓰기 도구가 기본 활성화됩니다. 공개 OAuth 연결에서는 기본 비활성화되며 `OAUTH_ENABLE_WRITE_TOOLS=true`로 명시적으로 켤 수 있습니다.
 
-자세한 내부 구조는 [아키텍처 문서](docs/architecture.md), 운영 구성은 [한국어 배포 가이드](docs/deploy.ko.md)를 참고하세요.
+자세한 내부 구조는 [아키텍처 문서](docs/architecture.md), 운영 구성은
+[한국어 배포 가이드](docs/deploy.ko.md), 외부 서버 연결은
+[ngrok 튜토리얼](docs/ngrok-remote.ko.md)을 참고하세요.
 
 ## 내 vault 없이 체험하기
 
@@ -123,13 +168,13 @@ npx -y obsidian-everywhere doctor /절대/경로/내/vault
 | | **Obsidian Everywhere** | [obsidian-mcp-server](https://github.com/cyanheads/obsidian-mcp-server) | [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) | [TurboVault](https://github.com/epistates/turbovault) |
 |---|---|---|---|---|
 | 설치 | `npx` | `npx` | Obsidian community plugin | `cargo install` / binary |
-| 공개된 도구 수 | **36** | 14 | 16 | 74 |
+| 공개된 도구 수 | **39** | 14 | 16 | 74 |
 | Obsidian 실행 필요 | **아니요** | 예 | 예 | **아니요** |
 | 대표 그래프 기능 | PageRank·최단 경로·n-hop·미해결 링크 | 구조화 읽기의 outgoing links | 실행 중인 Obsidian metadata/search | multi-hop·centrality·cluster·추천 |
 | 안전한 편집 | 부분 편집·bulk dry-run·snapshot·rollback | 정밀 편집·frontmatter/tag 관리 | live heading/block/frontmatter patch | conflict hash·audit rollback·Git batch |
 | 현재 파일·앱 명령 | 저장 설정만 조회 | **지원** | **지원** | 미지원 |
-| 원격 transport | stdio·bearer HTTP·**OAuth 2.1** | stdio·JWT/OAuth HTTP | API key HTTP | stdio·HTTP·WebSocket·TCP |
-| 특히 잘 맞는 경우 | 빠른 `npx`, LLM context, 그래프 탐색, 안전한 vault 정리 | 앱 기반 CRUD와 Omnisearch | 실행 중인 Obsidian 직접 제어 | 최대 기능 폭·multi-vault·고급 분석 |
+| 원격 transport | stdio·사설망 또는 HTTPS tunnel의 bearer HTTP·**OAuth 2.1** | stdio·JWT/OAuth HTTP | API key HTTP | stdio·HTTP·WebSocket·TCP |
+| 특히 잘 맞는 경우 | headless vault의 그래프·시맨틱 context와 보호된 원격 접근·편집 | 앱 기반 CRUD와 Omnisearch | 실행 중인 Obsidian 직접 제어 | 최대 기능 폭·multi-vault·고급 분석 |
 
 2026-07-20 각 프로젝트의 공개 문서를 기준으로 확인했습니다. 실행 중인 앱의
 현재 파일이나 command palette 제어가 중요하면 plugin 기반 서버가 더 적합합니다.
@@ -146,7 +191,7 @@ npx -y obsidian-everywhere doctor /절대/경로/내/vault
 | 사용 환경 | 연결 방법 |
 |---|---|
 | vault와 같은 컴퓨터의 Codex, ChatGPT Desktop, Claude | **stdio** — 클라이언트가 서버 프로세스를 직접 실행 |
-| 내가 관리하는 다른 컴퓨터 | **bearer-token HTTP + 사설망** — Tailscale 권장 |
+| 내가 관리하는 다른 컴퓨터 | **bearer-token HTTP** — Tailscale 같은 사설망 또는 [ngrok HTTPS tunnel](docs/ngrok-remote.ko.md) |
 | claude.ai 웹·모바일 | **OAuth HTTP + 공개 HTTPS 주소** — Cloudflare Tunnel 사용 가능 |
 
 여러 transport 프로세스를 동시에 실행할 수도 있습니다. v0.2부터 기본 DB 파일은 transport별(`index-stdio.db`, `index-http.db`, `index-oauth.db`)로 분리됩니다. `OBSIDIAN_EVERYWHERE_DB`를 직접 지정할 때도 프로세스마다 서로 다른 경로를 사용하세요.
@@ -220,7 +265,10 @@ OBSIDIAN_EVERYWHERE_TOKEN=$(openssl rand -hex 32) \
 npx -y --package obsidian-everywhere obsidian-everywhere-http
 ```
 
-두 컴퓨터를 Tailscale 같은 사설망에 연결한 뒤 클라이언트 컴퓨터에서 등록합니다.
+두 컴퓨터를 Tailscale 같은 사설망에 연결한 뒤 클라이언트 컴퓨터에서
+등록합니다. 공용 인터넷을 통해 연결하려면 로컬 HTTP 포트를 직접 열지 말고,
+read-only부터 시작하는 [ngrok Remote Vault Bridge 튜토리얼](docs/ngrok-remote.ko.md)을
+따르세요.
 
 ```bash
 export OBSIDIAN_EVERYWHERE_CLIENT_TOKEN="<서버에서 생성한 토큰>"
@@ -246,6 +294,9 @@ ChatGPT Desktop 프로세스에서도 이 환경 변수를 사용할 수 있어�
 | `OAUTH_ISSUER_URL` | `oauth-http-cli.js` | 공개 HTTPS origin |
 | `OAUTH_LOGIN_SECRET` | `oauth-http-cli.js` | 단일 사용자 로그인 secret |
 | `OBSIDIAN_EVERYWHERE_READONLY` | stdio, bearer HTTP | `true`이면 쓰기 도구 비활성화 |
+| `OBSIDIAN_EVERYWHERE_MOUNT_GUARD` | 모든 실행 방식 | opt-in Beta mount 장애 보호와 자동 재조정 |
+| `OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL` | 모든 실행 방식 | `.obsidian/app.json` 같은 vault-relative identity 경로 |
+| `OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS` | 모든 실행 방식 | 실행 중 mount 확인 간격(기본 `5000`) |
 | `OAUTH_ENABLE_WRITE_TOOLS` | OAuth HTTP | `true`이면 공개 connector에서 쓰기 도구 활성화 |
 
 ## 개발
@@ -264,6 +315,9 @@ npm run format:check
 
 ## 프로젝트 상태
 
-v0.2는 그래프 엔진, stdio·bearer HTTP·OAuth HTTP transport, 구조화 읽기와 안전한 부분·일괄 편집을 포함한 MCP 도구 31개, Codex·ChatGPT Desktop·Claude 설정을 제공합니다. 공개 connector 등록과 Cloudflare Tunnel 계정 구성처럼 브라우저와 계정이 필요한 작업은 사용자가 직접 진행해야 합니다.
+현재 v0.6.x는 그래프·로컬 시맨틱 context engine, stdio·bearer HTTP·OAuth
+HTTP transport, MCP 도구 39개, 보호된 부분·일괄 편집과 Codex·ChatGPT
+Desktop·Claude 설정을 제공합니다. Remote Vault Bridge와 mount-guard는 다음
+tagged release 전까지 여러 플랫폼의 피드백을 받는 **Unreleased Beta**입니다.
 
 버그 제보와 PR은 [CONTRIBUTING.md](CONTRIBUTING.md), 보안 문제는 [SECURITY.md](SECURITY.md)를 확인하세요. 라이선스는 [MIT](LICENSE)입니다.
