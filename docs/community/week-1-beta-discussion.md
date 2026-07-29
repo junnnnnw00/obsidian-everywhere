@@ -9,7 +9,7 @@ token-budgeted context bundle, and — if you explicitly enable it — use guard
 write tools. Mount Guard is also available as an opt-in Beta for removable
 drives, NAS shares, and container mounts.
 
-[Watch the 44-second workflow](https://github.com/junnnnnw00/obsidian-everywhere/blob/main/assets/remote-vault-bridge-demo.mp4).
+[Watch the 44-second workflow](https://github.com/junnnnnw00/obsidian-everywhere#watch-the-remote-vault-bridge-in-44-seconds).
 
 I am looking for **five people** who can spend about **20–30 minutes** testing a
 real setup. A small disposable vault is welcome; no private note contents need

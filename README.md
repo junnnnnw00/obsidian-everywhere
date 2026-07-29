@@ -21,13 +21,11 @@
 
 </div>
 
-![Obsidian Everywhere — graph and semantic context from your local vault, available to local and remote agents](assets/social-preview.jpg)
-
 ## Watch the Remote Vault Bridge in 44 seconds
 
-[![Remote Vault Bridge demo — a local Obsidian vault connected to remote agents through authenticated HTTPS](assets/remote-vault-bridge-demo-poster.png)](assets/remote-vault-bridge-demo.mp4)
+![Remote Vault Bridge demo — a remote agent searches graph and semantic context, makes a guarded edit, and recovers from a disconnected local vault](assets/remote-vault-bridge-demo.gif)
 
-[▶ Play the 44-second demo](assets/remote-vault-bridge-demo.mp4) · [Remote setup guide](docs/ngrok-remote.md)
+[Remote setup guide](docs/ngrok-remote.md)
 
 *Remote request → semantic search → graph context → guarded edit → mount-loss recovery.*
 

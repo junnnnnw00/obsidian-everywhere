@@ -17,13 +17,11 @@
 
 </div>
 
-![Obsidian Everywhere — 로컬 vault의 그래프와 시맨틱 컨텍스트를 로컬·원격 에이전트에서 활용](assets/social-preview.jpg)
-
 ## 44초로 보는 Remote Vault Bridge
 
-[![Remote Vault Bridge 데모 — 인증된 HTTPS로 로컬 Obsidian vault와 원격 에이전트 연결](assets/remote-vault-bridge-demo-poster.png)](assets/remote-vault-bridge-demo.mp4)
+![Remote Vault Bridge 데모 — 원격 에이전트가 그래프·시맨틱 컨텍스트를 검색하고 안전하게 수정한 뒤 로컬 vault 연결 끊김에서 복구](assets/remote-vault-bridge-demo.gif)
 
-[▶ 44초 데모 바로 보기](assets/remote-vault-bridge-demo.mp4) · [원격 연결 가이드](docs/ngrok-remote.md)
+[원격 연결 가이드](docs/ngrok-remote.md)
 
 *원격 요청 → 시맨틱 검색 → 그래프 컨텍스트 → 보호된 편집 → mount-loss 복구*
 

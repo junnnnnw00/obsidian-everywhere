@@ -28,7 +28,7 @@ enabled for creating, appending, moving, tagging, and bulk editing notes.
 
 Here is a 44-second product-research example:
 
-https://github.com/junnnnnw00/obsidian-everywhere/blob/main/assets/remote-vault-bridge-demo.mp4
+https://github.com/junnnnnw00/obsidian-everywhere#watch-the-remote-vault-bridge-in-44-seconds
 
 The video shows a remote agent finding Project Lumen's onboarding evidence
 through semantic and graph context, appending an interview finding, blocking a
@@ -58,7 +58,7 @@ access, guarded edits, and Beta mount-loss protection for removable/NAS/
 container vaults.
 
 44-second demo:
-https://github.com/junnnnnw00/obsidian-everywhere/blob/main/assets/remote-vault-bridge-demo.mp4
+https://github.com/junnnnnw00/obsidian-everywhere#watch-the-remote-vault-bridge-in-44-seconds
 
 Repo + setup:
 https://github.com/junnnnnw00/obsidian-everywhere
@@ -89,7 +89,7 @@ missing mount preserves the existing index, marks reads as stale, blocks writes,
 and triggers full reconciliation before writes reopen.
 
 Demo:
-https://github.com/junnnnnw00/obsidian-everywhere/blob/main/assets/remote-vault-bridge-demo.mp4
+https://github.com/junnnnnw00/obsidian-everywhere#watch-the-remote-vault-bridge-in-44-seconds
 
 Source:
 https://github.com/junnnnnw00/obsidian-everywhere
