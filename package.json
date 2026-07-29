@@ -1,6 +1,6 @@
 {
   "name": "obsidian-everywhere",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Graph and local semantic context for Obsidian, with guarded remote MCP access and edits.",
   "mcpName": "io.github.junnnnnw00/obsidian-everywhere",
   "license": "MIT",
@@ -37,7 +37,9 @@
   "files": [
     "dist",
     "assets/social-preview.jpg",
-    "assets/demo.gif"
+    "assets/demo.gif",
+    "assets/remote-vault-bridge-demo-poster.png",
+    "assets/remote-vault-bridge-demo.mp4"
   ],
   "scripts": {
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\"",

@@ -6,15 +6,26 @@
 
 **연결된 노트를 AI 컨텍스트로 만들고, 로컬 vault를 어디서 실행되는 에이전트와도 안전하게 연결하세요.**
 
+[![CI](https://github.com/junnnnnw00/obsidian-everywhere/actions/workflows/ci.yml/badge.svg)](https://github.com/junnnnnw00/obsidian-everywhere/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/obsidian-everywhere?logo=npm)](https://www.npmjs.com/package/obsidian-everywhere)
+[![npm downloads](https://img.shields.io/npm/dt/obsidian-everywhere?logo=npm&label=downloads)](https://www.npmjs.com/package/obsidian-everywhere)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 *그래프 컨텍스트 · 로컬 시맨틱 검색 · 안전한 편집 · MCP 기반 원격 에이전트*
 
-<a href="https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere">
-  <img width="330" height="60" src="https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere/badges/score.svg" alt="Glama quality score" />
-</a>
+[![obsidian-everywhere MCP server](https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere/badges/card.svg)](https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere)
 
 </div>
 
 ![Obsidian Everywhere — 로컬 vault의 그래프와 시맨틱 컨텍스트를 로컬·원격 에이전트에서 활용](assets/social-preview.jpg)
+
+## 44초로 보는 Remote Vault Bridge
+
+[![Remote Vault Bridge 데모 — 인증된 HTTPS로 로컬 Obsidian vault와 원격 에이전트 연결](assets/remote-vault-bridge-demo-poster.png)](assets/remote-vault-bridge-demo.mp4)
+
+[▶ 44초 데모 바로 보기](assets/remote-vault-bridge-demo.mp4) · [원격 연결 가이드](docs/ngrok-remote.md)
+
+*원격 요청 → 시맨틱 검색 → 그래프 컨텍스트 → 보호된 편집 → mount-loss 복구*
 
 ---
 
@@ -33,6 +44,7 @@ Obsidian Everywhere는 두 가지 생각을 중심으로 설계되었습니다.
 
 ## 목차
 
+- [44초로 보는 Remote Vault Bridge](#44초로-보는-remote-vault-bridge)
 - [주요 기능](#주요-기능)
 - [두 가지 핵심 기능](#두-가지-핵심-기능)
 - [내 vault 없이 체험하기](#내-vault-없이-체험하기)
@@ -315,9 +327,10 @@ npm run format:check
 
 ## 프로젝트 상태
 
-현재 v0.6.x는 그래프·로컬 시맨틱 context engine, stdio·bearer HTTP·OAuth
+현재 v0.7.0은 그래프·로컬 시맨틱 context engine, stdio·bearer HTTP·OAuth
 HTTP transport, MCP 도구 39개, 보호된 부분·일괄 편집과 Codex·ChatGPT
-Desktop·Claude 설정을 제공합니다. Remote Vault Bridge와 mount-guard는 다음
-tagged release 전까지 여러 플랫폼의 피드백을 받는 **Unreleased Beta**입니다.
+Desktop·Claude 설정을 제공합니다. Remote Vault Bridge는 정식 배포 경로이며,
+선택형 mount guard는 removable drive·NAS·container mount 환경의 피드백을
+받는 **Beta**입니다.
 
 버그 제보와 PR은 [CONTRIBUTING.md](CONTRIBUTING.md), 보안 문제는 [SECURITY.md](SECURITY.md)를 확인하세요. 라이선스는 [MIT](LICENSE)입니다.

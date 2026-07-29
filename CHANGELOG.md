@@ -6,6 +6,8 @@ project doesn't yet follow strict semver pre-1.0.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-29
+
 ### Added
 
 - **Remote Vault Bridge** is now a first-class deployment path: an external
@@ -22,6 +24,9 @@ project doesn't yet follow strict semver pre-1.0.
   blocked while stale; and a returning mount triggers full reconciliation.
   Guarded scans also verify the mount again before committing, so a mount loss
   during reconciliation rolls the index transaction back.
+- A 44-second, source-controlled Swift demo shows the complete remote workflow:
+  authenticated tunnel access, semantic and graph context, guarded writes,
+  mount-loss protection, and automatic reconciliation.
 
 ### Security
 
@@ -196,8 +201,19 @@ Initial release. A graph-native MCP server for Obsidian vaults.
 - The OAuth provider is single-user by design, not a general identity
   system (see DECISIONS.md D11).
 
-[0.1.0]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.1.0
-[0.2.0]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.2.0
-[0.2.1]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.2.1
-[0.2.2]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.2.2
+[Unreleased]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.5.2...v0.6.0
+[0.5.2]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.3.5...v0.4.0
+[0.3.5]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.3.4...v0.3.5
+[0.3.4]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.3.2...v0.3.4
+[0.3.2]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.3.0
+[0.2.2]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.2.2
+[0.2.1]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.2.1
+[0.2.0]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.2.0
+[0.1.0]: https://github.com/junnnnnw00/obsidian-everywhere/releases/tag/v0.1.0

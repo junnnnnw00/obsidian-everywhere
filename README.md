@@ -12,18 +12,24 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](tsconfig.json)
 [![MCP](https://img.shields.io/badge/MCP-server-6b4fbb)](https://modelcontextprotocol.io)
 [![npm](https://img.shields.io/npm/v/obsidian-everywhere?logo=npm)](https://www.npmjs.com/package/obsidian-everywhere)
+[![npm downloads](https://img.shields.io/npm/dt/obsidian-everywhere?logo=npm&label=downloads)](https://www.npmjs.com/package/obsidian-everywhere)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![junnnnnw00/obsidian-everywhere MCP server](https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere/badges/score.svg)](https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere)
 
 *Graph context · local semantic search · safe edits · remote agents over MCP*
 
-<a href="https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere">
-  <img width="330" height="60" src="https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere/badges/score.svg" alt="Glama quality score" />
-</a>
+[![obsidian-everywhere MCP server](https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere/badges/card.svg)](https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere)
 
 </div>
 
 ![Obsidian Everywhere — graph and semantic context from your local vault, available to local and remote agents](assets/social-preview.jpg)
+
+## Watch the Remote Vault Bridge in 44 seconds
+
+[![Remote Vault Bridge demo — a local Obsidian vault connected to remote agents through authenticated HTTPS](assets/remote-vault-bridge-demo-poster.png)](assets/remote-vault-bridge-demo.mp4)
+
+[▶ Play the 44-second demo](assets/remote-vault-bridge-demo.mp4) · [Remote setup guide](docs/ngrok-remote.md)
+
+*Remote request → semantic search → graph context → guarded edit → mount-loss recovery.*
 
 ---
 
@@ -45,6 +51,7 @@ not a vault-sync product.
 
 ## Contents
 
+- [Watch the Remote Vault Bridge in 44 seconds](#watch-the-remote-vault-bridge-in-44-seconds)
 - [Features](#features)
 - [Two core capabilities](#two-core-capabilities)
 - [Try it without your vault](#try-it-without-your-vault)
@@ -451,11 +458,12 @@ exclusion, and Korean filenames/tags/wikilinks). It's what every test in
 
 ## Project status
 
-Current v0.6.x includes the graph and local semantic context engine, all three
+Current v0.7.0 includes the graph and local semantic context engine, all three
 transports (stdio, bearer HTTP, OAuth HTTP), 39 MCP tools, guarded partial and
 bulk writes, and client setup for Codex, ChatGPT Desktop, and Claude. Remote
-Vault Bridge and mount-guard are documented under **Unreleased** while they
-receive cross-platform Beta feedback before the next tagged release.
+Vault Bridge is a first-class deployment path. Its opt-in mount guard remains
+**Beta** while it receives cross-platform feedback for removable drives, NAS
+shares, and container mounts.
 
 ## Contributing
 
