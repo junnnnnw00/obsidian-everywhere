@@ -28,6 +28,11 @@ jobs:
           CLONES=$(fetch_github clones)
           REFERRERS=$(fetch_github popular/referrers)
           POPULAR=$(fetch_github popular/paths)
+          REPOSITORY_METRICS=$(curl --fail --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}" || printf '{}')
           NPM=$(curl --fail --silent --show-error \
             "https://api.npmjs.org/downloads/point/last-week/obsidian-everywhere" || printf '{}')
 
@@ -38,10 +43,12 @@ jobs:
             --argjson clones "${CLONES}" \
             --argjson referrers "${REFERRERS}" \
             --argjson popular_paths "${POPULAR}" \
+            --argjson repository_metrics "${REPOSITORY_METRICS}" \
             --argjson npm "${NPM}" \
             '{
               generated_at: $generated_at,
               repository: $repository,
+              repository_metrics: $repository_metrics,
               views: $views,
               clones: $clones,
               referrers: $referrers,
@@ -55,11 +62,14 @@ jobs:
             echo
             echo "| Metric | Total | Unique |"
             echo "|---|---:|---:|"
+            echo "| GitHub stars (current) | $(jq -r '.repository_metrics.stargazers_count // "n/a"' growth-report.json) | — |"
+            echo "| GitHub forks (current) | $(jq -r '.repository_metrics.forks_count // "n/a"' growth-report.json) | — |"
+            echo "| GitHub watchers (current) | $(jq -r '.repository_metrics.subscribers_count // "n/a"' growth-report.json) | — |"
             echo "| GitHub views (14d) | $(jq -r '.views.count // "n/a"' growth-report.json) | $(jq -r '.views.uniques // "n/a"' growth-report.json) |"
             echo "| GitHub clones (14d) | $(jq -r '.clones.count // "n/a"' growth-report.json) | $(jq -r '.clones.uniques // "n/a"' growth-report.json) |"
             echo "| npm downloads (7d) | $(jq -r '.npm.downloads // "n/a"' growth-report.json) | — |"
             echo
-            echo "The full referrer and popular-path data is attached as a private workflow artifact."
+            echo "Traffic fields are best-effort because GitHub's default Actions token may not expose repository traffic. The detailed report is attached as a private workflow artifact."
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Preserve detailed report
