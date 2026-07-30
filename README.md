@@ -463,6 +463,13 @@ Vault Bridge is a first-class deployment path. Its opt-in mount guard remains
 **Beta** while it receives cross-platform feedback for removable drives, NAS
 shares, and container mounts.
 
+Help test a real remote-vault setup in
+[Beta Issue #18](https://github.com/junnnnnw00/obsidian-everywhere/issues/18),
+or ask questions in
+[Discussion #19](https://github.com/junnnnnw00/obsidian-everywhere/discussions/19).
+A disposable vault is welcome; never share note contents, tokens, or private
+hostnames.
+
 ## Contributing
 
 Bug reports, feature requests, and PRs are welcome — see

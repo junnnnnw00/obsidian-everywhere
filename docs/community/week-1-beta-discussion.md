@@ -30,6 +30,9 @@ If you would like to help, reply with your OS, vault location, MCP client,
 connection method, and the parts you want to test. Please never post access
 tokens, tunnel credentials, private hostnames, or note contents.
 
+Join and track the Beta round in
+[Issue #18](https://github.com/junnnnnw00/obsidian-everywhere/issues/18).
+
 Setup guide:
 [Remote Vault Bridge with ngrok](https://github.com/junnnnnw00/obsidian-everywhere/blob/main/docs/ngrok-remote.md)
 

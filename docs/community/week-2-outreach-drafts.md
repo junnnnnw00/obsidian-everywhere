@@ -14,6 +14,8 @@ Obsidian Everywhere v0.7: graph + local semantic context for remote AI agents
 I built an open-source MCP server for a workflow I could not find elsewhere:
 let an AI agent running on another machine use my local Obsidian vault as
 structured context, without uploading the vault to a hosted knowledge service.
+It is a headless companion utility rather than an Obsidian Community plugin, so
+Obsidian does not need to stay open.
 
 Obsidian Everywhere treats the vault as both a note graph and a semantic
 knowledge base. An MCP client can search by meaning, inspect backlinks and
@@ -34,12 +36,19 @@ The video shows a remote agent finding Project Lumen's onboarding evidence
 through semantic and graph context, appending an interview finding, blocking a
 write when the vault drive disappears, and reconciling when it returns.
 
+You can also try the sample vault without touching your notes:
+
+`npx -y obsidian-everywhere demo`
+
 The mount-loss protection is still Beta. I am looking for five testers across
 macOS, Linux, Windows/WSL, removable drives, NAS shares, and container mounts.
 A small disposable vault is enough, and no note contents need to be shared.
 
 Repository:
 https://github.com/junnnnnw00/obsidian-everywhere
+
+Join the five-environment Beta:
+https://github.com/junnnnnw00/obsidian-everywhere/issues/18
 
 Read-only-first ngrok tutorial:
 https://github.com/junnnnnw00/obsidian-everywhere/blob/main/docs/ngrok-remote.md
@@ -62,6 +71,9 @@ https://github.com/junnnnnw00/obsidian-everywhere#watch-the-remote-vault-bridge-
 
 Repo + setup:
 https://github.com/junnnnnw00/obsidian-everywhere
+
+Join the Beta:
+https://github.com/junnnnnw00/obsidian-everywhere/issues/18
 
 I am looking for five real-world testers. A disposable vault is fine; no note
 contents need to be shared. I would love to hear which setup step feels least
@@ -93,6 +105,9 @@ https://github.com/junnnnnw00/obsidian-everywhere#watch-the-remote-vault-bridge-
 
 Source:
 https://github.com/junnnnnw00/obsidian-everywhere
+
+Beta tracker:
+https://github.com/junnnnnw00/obsidian-everywhere/issues/18
 
 I am looking for five compatibility testers, particularly for:
 

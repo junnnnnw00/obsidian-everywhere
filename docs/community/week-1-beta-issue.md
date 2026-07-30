@@ -47,6 +47,9 @@ Please do **not** post note contents, access tokens, tunnel credentials, or
 private hostnames. `obsidian-everywhere doctor --share` is designed to provide
 privacy-safe diagnostics if something fails.
 
+Questions and setup discussion are welcome in
+[Discussion #19](https://github.com/junnnnnw00/obsidian-everywhere/discussions/19).
+
 In return, you will get direct setup help and your environment will shape the
 Beta exit criteria and documentation. Reproducible reports and documentation
 corrections are just as valuable as code.

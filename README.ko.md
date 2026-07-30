@@ -331,4 +331,11 @@ Desktop·Claude 설정을 제공합니다. Remote Vault Bridge는 정식 배포 
 선택형 mount guard는 removable drive·NAS·container mount 환경의 피드백을
 받는 **Beta**입니다.
 
+실제 원격 vault 설정을 테스트하려면
+[Beta Issue #18](https://github.com/junnnnnw00/obsidian-everywhere/issues/18)에
+참여하거나
+[Discussion #19](https://github.com/junnnnnw00/obsidian-everywhere/discussions/19)에서
+질문해 주세요. 임시 vault로도 충분하며 노트 내용, 토큰, 비공개 호스트명은
+절대 공유하지 마세요.
+
 버그 제보와 PR은 [CONTRIBUTING.md](CONTRIBUTING.md), 보안 문제는 [SECURITY.md](SECURITY.md)를 확인하세요. 라이선스는 [MIT](LICENSE)입니다.
