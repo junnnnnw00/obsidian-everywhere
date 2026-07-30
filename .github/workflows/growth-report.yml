@@ -39,7 +39,15 @@ jobs:
             --argjson referrers "${REFERRERS}" \
             --argjson popular_paths "${POPULAR}" \
             --argjson npm "${NPM}" \
-            '{generated_at, repository, views, clones, referrers, popular_paths, npm}' \
+            '{
+              generated_at: $generated_at,
+              repository: $repository,
+              views: $views,
+              clones: $clones,
+              referrers: $referrers,
+              popular_paths: $popular_paths,
+              npm: $npm
+            }' \
             > growth-report.json
 
           {
