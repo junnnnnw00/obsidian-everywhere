@@ -1,7 +1,7 @@
 {
   "name": "Obsidian Everywhere",
   "url": "https://github.com/junnnnnw00/obsidian-everywhere",
-  "productPageUrl": null,
+  "productPageUrl": "https://www.producthunt.com/products/obsidian-everywhere",
   "launchMode": "existing-product-new-launch",
   "assetPolicy": "static-gallery-only",
   "tagline": "Your Obsidian graph and local semantic context, anywhere",
