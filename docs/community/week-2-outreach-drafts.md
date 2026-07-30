@@ -3,13 +3,28 @@
 These are ready-to-edit drafts, not scheduled posts. Post only after v0.7.0 is
 live and the video, npm package, and registry entry have been verified.
 
-## 1. Obsidian Forum — Share & Showcase
+## 1. Obsidian Forum — Share & showcase / Workflows & Templates
+
+The `Share & showcase` root is read-only. Post this headless companion workflow
+under `Workflows & Templates`, keep future project updates in the same thread,
+and retain the required disclaimer at the top.
 
 **Title**
 
 Obsidian Everywhere v0.7: graph + local semantic context for remote AI agents
 
 **Body**
+
+## Disclaimer
+
+Is this project **open source**? Yes
+
+Is this project completely **free**? Yes
+
+Does this project use AI beyond the author's ability to comprehend how it works?
+No
+
+---
 
 I built an open-source MCP server for a workflow I could not find elsewhere:
 let an AI agent running on another machine use my local Obsidian vault as

@@ -1,6 +1,9 @@
 {
   "name": "Obsidian Everywhere",
   "url": "https://github.com/junnnnnw00/obsidian-everywhere",
+  "productPageUrl": null,
+  "launchMode": "existing-product-new-launch",
+  "assetPolicy": "static-gallery-only",
   "tagline": "Your Obsidian graph and local semantic context, anywhere",
   "description": "Local-first MCP turns your Obsidian vault into graph and semantic context—even for agents on another machine. Search by meaning, build context, and start remote access read-only. Guarded edits and Mount Guard protect writes without hosting the vault.",
   "topics": ["Note and writing apps", "Developer Tools", "Artificial Intelligence"],

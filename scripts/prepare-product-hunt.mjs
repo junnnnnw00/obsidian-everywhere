@@ -19,6 +19,15 @@ const failures = [];
 if (!launch.name?.trim()) failures.push("name is required");
 if (!launch.url?.startsWith("https://")) failures.push("url must be an HTTPS URL");
 if (/utm_|bit\.ly|t\.co/i.test(launch.url ?? "")) failures.push("url must not be shortened or tracked");
+if (launch.productPageUrl !== null && !launch.productPageUrl?.startsWith("https://www.producthunt.com/")) {
+  failures.push("productPageUrl must be null or an HTTPS producthunt.com URL");
+}
+if (launch.launchMode !== "existing-product-new-launch") {
+  failures.push("launchMode must be existing-product-new-launch to preserve prior launch history");
+}
+if (launch.assetPolicy !== "static-gallery-only") {
+  failures.push("assetPolicy must be static-gallery-only");
+}
 if (!launch.tagline?.trim() || launch.tagline.length > 60) failures.push("tagline must be 1–60 characters");
 if (!launch.description?.trim() || launch.description.length > 260)
   failures.push("description must be 1–260 characters");
@@ -180,31 +189,10 @@ for (const { timestamp, filename } of galleryFrames) {
     `product-hunt/dist/${filename}`,
   ]);
 }
-ffmpeg([
-  "-i",
-  demoInput,
-  "-filter_complex",
-  "[0:v]fps=10,scale=960:540:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=96:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle",
-  "-loop",
-  "0",
-  "product-hunt/dist/interactive-demo.gif",
-]);
 
 validateAsset("product-hunt/dist/thumbnail.png", { width: 240, height: 240, codec: "png" });
 for (const { filename } of galleryFrames) {
   validateAsset(`product-hunt/dist/${filename}`, { width: 1270, height: 760, codec: "png" });
-}
-const demoProbe = validateAsset("product-hunt/dist/interactive-demo.gif", {
-  width: 960,
-  height: 540,
-  codec: "gif",
-});
-const generatedDemoSeconds = Number(demoProbe.format?.duration);
-if (!Number.isFinite(generatedDemoSeconds) || Math.abs(generatedDemoSeconds - expectedDemoSeconds) > 0.1) {
-  console.error(
-    `Invalid generated demo duration: expected ${expectedDemoSeconds}s, got ${demoProbe.format?.duration ?? "unknown"}`,
-  );
-  process.exit(1);
 }
 
 const galleryUploadOrder = galleryFrames
@@ -223,7 +211,9 @@ Generated from \`product-hunt/launch.json\` and the ${expectedDemoSeconds}-secon
 - **Topics:** ${launch.topics.join(", ")}
 - **Pricing:** ${launch.pricing}
 - **Status:** ${launch.status}
-- **Launch date:** ${launch.launchDate ?? "Choose in Product Hunt (within 30 days)"}
+- **Existing product page:** ${launch.productPageUrl ?? "Select the claimed Obsidian Everywhere product in Product Hunt"}
+- **Launch mode:** Existing product → New launch
+- **Launch date:** ${launch.launchDate ?? "Leave unset until relaunch eligibility is confirmed"}
 
 ## Description (${launch.description.length}/260)
 
@@ -243,9 +233,8 @@ ${launch.firstComment}
 
 1. \`thumbnail.png\` — 240×240 static product mark
 ${galleryUploadOrder}
-${galleryFrames.length + 2}. \`interactive-demo.gif\` — optional ${expectedDemoSeconds}s animated gallery demo, 960×540 and under 3 MB
 
-The static gallery is complete on its own. Product Hunt accepts animated GIFs in the gallery, but only full YouTube URLs in its dedicated video field.
+This kit intentionally uses a static gallery only. Leave the dedicated video field empty unless a public, full YouTube URL is available.
 
 ## Automated checks
 
@@ -254,12 +243,12 @@ The static gallery is complete on its own. Product Hunt accepts animated GIFs in
 - topics: ${launch.topics.length}/3
 - thumbnail: 240×240 PNG, under 3 MB
 - gallery: ${galleryFrames.length} PNGs at 1270×760, each under 3 MB
-- animated demo: 960×540 GIF, ${generatedDemoSeconds.toFixed(1)} seconds, under 3 MB
+- media policy: static gallery only; no GIF upload
 - no shortened/tracked primary URL and no request for votes
 
 ## Final manual step
 
-Open Product Hunt with a personal account, create a new product, paste these fields, upload the assets in order, add yourself as Maker, and choose **Create Draft** or **Schedule Launch**. Ask people to try the workflow and share feedback; do not ask them to vote.
+Open the already claimed Obsidian Everywhere product with a personal account, choose **New launch**, paste these fields, upload the static assets in order, add yourself as Maker, and choose **Create Draft**. Do not create a duplicate product and do not schedule the launch until the Beta has produced concrete compatibility feedback and Product Hunt's relaunch eligibility has been confirmed. Ask people to try the workflow and share feedback; do not ask them to vote.
 `;
 
 writeFileSync(join(outputDir, "submission.md"), submission);
