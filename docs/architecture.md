@@ -79,6 +79,11 @@ and searches the same FTS5 index. PDF, OOXML, OpenDocument, EPUB, RTF, plain
 text/code/data, and common images are handled locally. Inputs, ZIP entries,
 extracted character counts, and inline image sizes are capped so a large or
 malformed attachment cannot turn a request into an unbounded memory load.
+Defaults are 64 MiB per source attachment, 48 MiB per PDF, and 32 MiB per
+uncompressed archive entry. Operators can raise each limit up to 1 GiB with
+`OBSIDIAN_EVERYWHERE_MAX_ATTACHMENT_MIB`,
+`OBSIDIAN_EVERYWHERE_MAX_PDF_MIB`, and
+`OBSIDIAN_EVERYWHERE_MAX_ARCHIVE_ENTRY_MIB` respectively.
 
 `scan.ts` is where indexing actually happens:
 

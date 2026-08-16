@@ -6,6 +6,14 @@ project doesn't yet follow strict semver pre-1.0.
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-08-17
+
+### Changed
+
+- Raised the default attachment/PDF/archive-entry extraction limits from
+  32/16/8 MiB to 64/48/32 MiB. All three limits are now configurable up to
+  1 GiB through documented environment variables.
+
 ## [0.8.0] — 2026-08-17
 
 ### Added
@@ -217,7 +225,8 @@ Initial release. A graph-native MCP server for Obsidian vaults.
 - The OAuth provider is single-user by design, not a general identity
   system (see DECISIONS.md D11).
 
-[Unreleased]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.5.2...v0.6.0

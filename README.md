@@ -441,6 +441,9 @@ that with no Cloudflare/OAuth involved.
 | `OAUTH_LOGIN_SECRET` | `oauth-http-cli.js` | Single-user login secret |
 | `OBSIDIAN_EVERYWHERE_READONLY` | `cli.js`, `http-cli.js` | Set to `true` to disable all write tools (default: write tools on) |
 | `OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC` | all | Opt in after installing the optional `@huggingface/transformers` peer. Disabled by default because the model can exceed 500 MiB RSS; graph, FTS, and attachment search remain available. |
+| `OBSIDIAN_EVERYWHERE_MAX_ATTACHMENT_MIB` | all | Maximum source attachment size for local extraction (default `64`, range 1–1024). Raising it can exceed the 200 MiB memory target. |
+| `OBSIDIAN_EVERYWHERE_MAX_PDF_MIB` | all | PDF-specific extraction limit (default `48`, also capped by the attachment limit). |
+| `OBSIDIAN_EVERYWHERE_MAX_ARCHIVE_ENTRY_MIB` | all | Maximum uncompressed XML/HTML entry read from Office/OpenDocument/EPUB archives (default `32`). |
 | `OBSIDIAN_EVERYWHERE_MOUNT_GUARD` | all entrypoints | Opt-in Beta mount-loss protection and automatic reconciliation |
 | `OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL` | all entrypoints | Optional vault-relative identity path, e.g. `.obsidian/app.json` |
 | `OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS` | all entrypoints | Runtime mount probe interval (default `5000`) |
@@ -468,7 +471,7 @@ exclusion, and Korean filenames/tags/wikilinks). It's what every test in
 
 ## Project status
 
-Current v0.8.0 includes the graph and optional local semantic context engine, all three
+Current v0.8.1 includes the graph and optional local semantic context engine, all three
 transports (stdio, bearer HTTP, OAuth HTTP), 41 MCP tools, guarded partial and
 bulk writes, and client setup for Codex, ChatGPT Desktop, and Claude. Remote
 Vault Bridge is a first-class deployment path. Its opt-in mount guard remains

@@ -313,6 +313,9 @@ ChatGPT Desktop 프로세스에서도 이 환경 변수를 사용할 수 있어�
 | `OAUTH_LOGIN_SECRET` | `oauth-http-cli.js` | 단일 사용자 로그인 secret |
 | `OBSIDIAN_EVERYWHERE_READONLY` | stdio, bearer HTTP | `true`이면 쓰기 도구 비활성화 |
 | `OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC` | 전체 | 선택적 `@huggingface/transformers` 설치 후 시맨틱 검색 활성화. 500MB 이상 RSS를 사용할 수 있어 기본값은 꺼짐 |
+| `OBSIDIAN_EVERYWHERE_MAX_ATTACHMENT_MIB` | 전체 | 로컬 추출 대상 첨부파일 최대 크기(기본 `64`, 범위 1–1024). 높이면 200MB 메모리 목표를 넘을 수 있음 |
+| `OBSIDIAN_EVERYWHERE_MAX_PDF_MIB` | 전체 | PDF 전용 추출 제한(기본 `48`, 전체 첨부 제한도 함께 적용) |
+| `OBSIDIAN_EVERYWHERE_MAX_ARCHIVE_ENTRY_MIB` | 전체 | Office/OpenDocument/EPUB 내부에서 읽는 개별 압축 해제 XML/HTML entry 제한(기본 `32`) |
 | `OBSIDIAN_EVERYWHERE_MOUNT_GUARD` | 모든 실행 방식 | opt-in Beta mount 장애 보호와 자동 재조정 |
 | `OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL` | 모든 실행 방식 | `.obsidian/app.json` 같은 vault-relative identity 경로 |
 | `OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS` | 모든 실행 방식 | 실행 중 mount 확인 간격(기본 `5000`) |
@@ -335,7 +338,7 @@ npm run memory:smoke
 
 ## 프로젝트 상태
 
-현재 v0.8.0은 그래프·선택적 로컬 시맨틱 context engine, stdio·bearer HTTP·OAuth
+현재 v0.8.1은 그래프·선택적 로컬 시맨틱 context engine, stdio·bearer HTTP·OAuth
 HTTP transport, MCP 도구 41개, 보호된 부분·일괄 편집과 Codex·ChatGPT
 Desktop·Claude 설정을 제공합니다. Remote Vault Bridge는 정식 배포 경로이며,
 선택형 mount guard는 removable drive·NAS·container mount 환경의 피드백을

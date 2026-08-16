@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import AdmZip from "adm-zip";
 import { afterEach, describe, expect, it } from "vitest";
-import { MAX_EXTRACTABLE_BYTES, extractAttachment } from "./extract.js";
+import { MAX_EXTRACTABLE_BYTES, MAX_PDF_BYTES, MAX_ZIP_XML_ENTRY_BYTES, extractAttachment } from "./extract.js";
 
 export function makeZip(entries: Record<string, string>): Buffer {
   const zip = new AdmZip();
@@ -34,6 +34,12 @@ export function makeSimplePdf(text: string): Buffer {
 }
 
 describe("extractAttachment", () => {
+  it("ships limits above the original 32/16/8 MiB defaults", () => {
+    expect(MAX_EXTRACTABLE_BYTES).toBeGreaterThanOrEqual(64 * 1024 * 1024);
+    expect(MAX_PDF_BYTES).toBeGreaterThanOrEqual(48 * 1024 * 1024);
+    expect(MAX_ZIP_XML_ENTRY_BYTES).toBeGreaterThanOrEqual(32 * 1024 * 1024);
+  });
+
   const dirs: string[] = [];
   afterEach(() => {
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });

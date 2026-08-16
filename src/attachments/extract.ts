@@ -2,15 +2,23 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import AdmZip from "adm-zip";
 
-export const ATTACHMENT_EXTRACTOR_VERSION = "1";
+export const ATTACHMENT_EXTRACTOR_VERSION = "2";
 // These conservative limits are part of the server's low-memory contract.
 // Parsers run one file at a time, and no single document can make the process
 // retain an unbounded Buffer/string. A normal 8 GB laptop should remain well
 // below the 100-200 MB target unless the optional embedding model is invoked.
-export const MAX_EXTRACTABLE_BYTES = 32 * 1024 * 1024;
-export const MAX_PDF_BYTES = 16 * 1024 * 1024;
-export const MAX_ZIP_XML_ENTRY_BYTES = 8 * 1024 * 1024;
-export const MAX_EXTRACTED_CHARACTERS = 2_000_000;
+function limitFromEnv(name: string, fallbackMiB: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallbackMiB * 1024 * 1024;
+  const mib = Number(raw);
+  if (!Number.isFinite(mib) || mib < 1 || mib > 1024) return fallbackMiB * 1024 * 1024;
+  return Math.floor(mib * 1024 * 1024);
+}
+
+export const MAX_EXTRACTABLE_BYTES = limitFromEnv("OBSIDIAN_EVERYWHERE_MAX_ATTACHMENT_MIB", 64);
+export const MAX_PDF_BYTES = Math.min(MAX_EXTRACTABLE_BYTES, limitFromEnv("OBSIDIAN_EVERYWHERE_MAX_PDF_MIB", 48));
+export const MAX_ZIP_XML_ENTRY_BYTES = limitFromEnv("OBSIDIAN_EVERYWHERE_MAX_ARCHIVE_ENTRY_MIB", 32);
+export const MAX_EXTRACTED_CHARACTERS = 4_000_000;
 export const MAX_INLINE_IMAGE_BYTES = 8 * 1024 * 1024;
 
 export type ExtractionStatus = "extracted" | "image" | "unsupported" | "error";
