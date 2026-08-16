@@ -32,6 +32,11 @@ export function writeToolsEnabledByDefault(): boolean {
   return !isTruthyEnv(process.env.OBSIDIAN_EVERYWHERE_READONLY);
 }
 
+/** Opt in to the bundled multilingual transformer, which exceeds the default low-memory target. */
+export function semanticSearchEnabledFromEnv(): boolean {
+  return isTruthyEnv(process.env.OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC);
+}
+
 /**
  * Beta mount guard for removable drives, network shares, and container
  * mounts. The old REQUIRE_NONEMPTY variable remains as a compatibility alias.

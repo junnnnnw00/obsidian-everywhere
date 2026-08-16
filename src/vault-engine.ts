@@ -1,6 +1,7 @@
 import type { FSWatcher } from "chokidar";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
+import { ATTACHMENT_EXTRACTOR_VERSION, extractAttachment, type AttachmentExtraction } from "./attachments/extract.js";
 import type { MountGuardConfig } from "./env.js";
 import { VaultGraph } from "./graph/graph.js";
 import { VaultDB } from "./index/db.js";
@@ -12,7 +13,7 @@ import {
   type Embedder,
 } from "./index/embeddings.js";
 import { applyFileDelete, applyFileUpsert, fullScan, type ScanResult } from "./index/scan.js";
-import { DEFAULT_EXCLUDE_DIRS } from "./vault/paths.js";
+import { DEFAULT_EXCLUDE_DIRS, resolveExistingVaultPath } from "./vault/paths.js";
 import { waitForStableVaultListing } from "./vault/wait-for-mount.js";
 import { startWatcher, type WatchEvent } from "./watcher/watcher.js";
 
@@ -22,6 +23,8 @@ export interface VaultEngineOptions {
   excludeDirs?: string[];
   /** Injectable for tests; defaults to the real transformers.js-backed embedder (lazily loaded on first use). */
   embedder?: Embedder;
+  /** Explicit opt-in because the bundled multilingual model exceeds the low-memory runtime target. */
+  semanticSearchEnabled?: boolean;
   /** Opt-in protection for removable, network, and container-mounted vaults. */
   mountGuard?: MountGuardConfig;
 }
@@ -49,6 +52,7 @@ export class VaultEngine {
   readonly vaultDir: string;
   private readonly excludeDirs: string[];
   private readonly embedder: Embedder;
+  readonly semanticSearchEnabled: boolean;
   private readonly mountGuard: MountGuardConfig;
   private watcher: FSWatcher | null = null;
   private mountTimer: NodeJS.Timeout | null = null;
@@ -62,6 +66,7 @@ export class VaultEngine {
     this.db = new VaultDB(options.dbPath);
     this.graph = new VaultGraph();
     this.embedder = options.embedder ?? defaultEmbedder;
+    this.semanticSearchEnabled = options.semanticSearchEnabled ?? options.embedder !== undefined;
     this.mountGuard = options.mountGuard ?? { enabled: false, recheckIntervalMs: 5000 };
     this.mountState = this.mountGuard.enabled ? "unavailable" : "disabled";
   }
@@ -220,6 +225,11 @@ export class VaultEngine {
    * block indefinitely on a large backlog. See DECISIONS.md D20.
    */
   async ensureEmbeddingsFresh(limit: number): Promise<{ embedded: number; remaining: number }> {
+    if (!this.semanticSearchEnabled) {
+      throw new Error(
+        "Semantic search is disabled in low-memory mode. Set OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC=true to opt in.",
+      );
+    }
     const pending = this.db.getFilesNeedingEmbedding(EMBEDDING_MODEL, limit);
     if (pending.length === 0) return { embedded: 0, remaining: 0 };
     const vectors = await this.embedder(
@@ -234,8 +244,67 @@ export class VaultEngine {
 
   /** Embeds a free-text search query with the "query" prefix e5 models expect (asymmetric vs. the "passage" prefix notes are embedded with). */
   async embedQuery(text: string): Promise<Float32Array> {
+    if (!this.semanticSearchEnabled) {
+      throw new Error(
+        "Semantic search is disabled in low-memory mode. Set OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC=true to opt in.",
+      );
+    }
     const [vector] = await this.embedder([text], "query");
     return vector!;
+  }
+
+  private async extractIndexedAttachment(fileId: number): Promise<AttachmentExtraction | null> {
+    const file = this.db.getFileById(fileId);
+    if (!file || file.is_markdown === 1) return null;
+    const absPath = resolveExistingVaultPath(this.vaultDir, file.path);
+    let size: number;
+    try {
+      size = statSync(absPath).size;
+    } catch (error) {
+      const extraction: AttachmentExtraction = {
+        status: "error",
+        mimeType: "application/octet-stream",
+        text: null,
+        metadata: {},
+        error: error instanceof Error ? error.message : String(error),
+      };
+      this.db.upsertAttachmentExtraction(file, ATTACHMENT_EXTRACTOR_VERSION, extraction);
+      return extraction;
+    }
+    const extraction = await extractAttachment(absPath, size);
+    this.db.upsertAttachmentExtraction(file, ATTACHMENT_EXTRACTOR_VERSION, extraction);
+    return extraction;
+  }
+
+  /** Ensure one requested attachment has a current persistent extraction. */
+  async ensureAttachmentExtracted(fileId: number): Promise<AttachmentExtraction | null> {
+    const file = this.db.getFileById(fileId);
+    if (!file || file.is_markdown === 1) return null;
+    const cached = this.db.getAttachmentExtraction(file.id);
+    if (cached && cached.source_hash === file.hash && cached.extractor_version === ATTACHMENT_EXTRACTOR_VERSION) {
+      return {
+        status: cached.status,
+        mimeType: cached.mime_type,
+        text: cached.text_content,
+        metadata: JSON.parse(cached.metadata_json) as Record<string, unknown>,
+        error: cached.error,
+      };
+    }
+    return this.extractIndexedAttachment(file.id);
+  }
+
+  /**
+   * Lazily extract a bounded batch of new/changed attachments. Search tools
+   * call this before querying FTS; direct read_file always extracts its exact
+   * target immediately.
+   */
+  async ensureAttachmentExtractionsFresh(limit: number): Promise<{ extracted: number; remaining: number }> {
+    const pending = this.db.getFilesNeedingAttachmentExtraction(ATTACHMENT_EXTRACTOR_VERSION, limit);
+    for (const file of pending) await this.extractIndexedAttachment(file.id);
+    return {
+      extracted: pending.length,
+      remaining: this.db.countFilesNeedingAttachmentExtraction(ATTACHMENT_EXTRACTOR_VERSION),
+    };
   }
 
   watch(onEvent?: (event: WatchEvent) => void): void {

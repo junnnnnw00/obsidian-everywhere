@@ -71,7 +71,7 @@ vault (.md files)
 SQLite index (FTS5)  ⇄  in-memory graph (graphology)
   │                       n-hop · shortest path · PageRank
   ▼
-39 MCP tools
+41 MCP tools
   │
   ▼
 local stdio  ·  authenticated remote HTTP  ·  OAuth HTTP
@@ -86,17 +86,25 @@ local stdio  ·  authenticated remote HTTP  ·  OAuth HTTP
   graph, context, and guarded editing tools over authenticated Streamable HTTP.
   Use a private network or an HTTPS tunnel such as ngrok; the vault itself stays
   on the machine you control.
-- 🧠 **Local semantic search** — `semantic_search` and `get_related` with
-  `method: "semantic"` run a small multilingual embedding model
+- 📎 **Vault-wide file reading** — Markdown plus text/code/data files, PDF,
+  DOCX, PPTX, XLSX, OpenDocument, EPUB, RTF, and common images are indexed and
+  exposed without uploading them to a conversion service. Extraction is lazy,
+  cached, size-limited, and searchable with `search_files`.
+- 🧠 **Optional local semantic search** — `semantic_search` and `get_related` with
+  `method: "semantic"` run a multilingual embedding model
   (`multilingual-e5-small`) entirely on your machine — no API key, cloud
-  account, or Ollama process to run. Downloads once (~120MB, cached under
-  `~/.obsidian-everywhere/`), then works fully offline.
+  account, or Ollama process to run. Install the optional runtime with
+  `npm install @huggingface/transformers@^4.2.0`; its model downloads once
+  (~120MB, cached under
+  `~/.obsidian-everywhere/`), then works fully offline. It is disabled by
+  default to keep the server below the 200 MiB memory target; opt in with
+  `OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC=true` when extra memory is available.
 - 🛡️ **Safe writes and resilient mounts** — partial edits, dry-run-first bulk
   operations, rollback snapshots, recoverable deletion, and an opt-in Beta
   mount guard. If a removable drive, NAS share, or container mount disappears,
   the index is preserved, writes are blocked, and a full reconciliation runs
   after it returns.
-- 🛠️ **39 graph-native MCP tools** — structured reads, graph navigation,
+- 🛠️ **41 graph-native MCP tools** — structured reads, attachment extraction, graph navigation,
   semantic retrieval, safe lifecycle operations, persisted Obsidian settings,
   and explicit `vault_status` health reporting.
 
@@ -131,8 +139,10 @@ For the complete ngrok path, see the
 | `vault_overview` | Note counts, top tags, PageRank hub notes, recently modified — a starting orientation |
 | `vault_status` | Mount availability, index freshness, write availability, and last full reconciliation |
 | `search_notes` | Full-text search with tag/folder filters (with a trigram fallback for CJK substring matches unicode61 alone would miss — see DECISIONS.md D9), each result annotated with link counts and tags |
-| `semantic_search` | Meaning-based search via local embeddings (`multilingual-e5-small`, no external service) — finds conceptually related notes that don't share the query's exact words |
+| `search_files` | Search extracted text across PDF, Office/OpenDocument, EPUB, RTF, text/code/data, and Markdown-linked attachments |
+| `semantic_search` | Optional meaning-based search via local embeddings (`multilingual-e5-small`, no external service); disabled in the default low-memory mode |
 | `read_note` | Structured content/frontmatter/links/tags plus line pagination; optional heading-scoped read |
+| `read_file` | Read any indexed vault file: extracted document text with page/slide/sheet selection, or native image content for capable MCP clients |
 | `list_notes` | Explicit folder-aware note listing with pagination; optionally projects named frontmatter fields (e.g. `status`, `project`) per note |
 | `list_folder` | Immediate child folders, notes, and attachments |
 | `regex_search` | JavaScript-regex search with file, line, and excerpt |
@@ -430,6 +440,7 @@ that with no Cloudflare/OAuth involved.
 | `OAUTH_ISSUER_URL` | `oauth-http-cli.js` | Public HTTPS origin (e.g. your Cloudflare Tunnel hostname) |
 | `OAUTH_LOGIN_SECRET` | `oauth-http-cli.js` | Single-user login secret |
 | `OBSIDIAN_EVERYWHERE_READONLY` | `cli.js`, `http-cli.js` | Set to `true` to disable all write tools (default: write tools on) |
+| `OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC` | all | Opt in after installing the optional `@huggingface/transformers` peer. Disabled by default because the model can exceed 500 MiB RSS; graph, FTS, and attachment search remain available. |
 | `OBSIDIAN_EVERYWHERE_MOUNT_GUARD` | all entrypoints | Opt-in Beta mount-loss protection and automatic reconciliation |
 | `OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL` | all entrypoints | Optional vault-relative identity path, e.g. `.obsidian/app.json` |
 | `OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS` | all entrypoints | Runtime mount probe interval (default `5000`) |
@@ -445,6 +456,7 @@ npm test                   # vitest, runs against fixtures/test-vault
 npm run typecheck
 npm run lint
 npm run format:check
+npm run memory:smoke      # asserts the default attachment workload stays below 200 MiB RSS
 ```
 
 `fixtures/test-vault/` is a 30+ note fixture vault exercising every link
@@ -456,8 +468,8 @@ exclusion, and Korean filenames/tags/wikilinks). It's what every test in
 
 ## Project status
 
-Current v0.7.0 includes the graph and local semantic context engine, all three
-transports (stdio, bearer HTTP, OAuth HTTP), 39 MCP tools, guarded partial and
+Current v0.7.0 includes the graph and optional local semantic context engine, all three
+transports (stdio, bearer HTTP, OAuth HTTP), 41 MCP tools, guarded partial and
 bulk writes, and client setup for Codex, ChatGPT Desktop, and Claude. Remote
 Vault Bridge is a first-class deployment path. Its opt-in mount guard remains
 **Beta** while it receives cross-platform feedback for removable drives, NAS

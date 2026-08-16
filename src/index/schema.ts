@@ -95,4 +95,19 @@ CREATE TABLE IF NOT EXISTS embeddings (
   vector BLOB NOT NULL,
   updated_at INTEGER NOT NULL
 );
+
+-- Cached text/metadata extracted from non-Markdown vault files. The source
+-- hash and extractor version make cache invalidation explicit: a changed file
+-- or upgraded parser is picked up lazily by VaultEngine before read/search.
+CREATE TABLE IF NOT EXISTS attachment_extractions (
+  file_id INTEGER PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE,
+  source_hash TEXT NOT NULL,
+  extractor_version TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('extracted','image','unsupported','error')),
+  mime_type TEXT NOT NULL,
+  text_content TEXT,
+  metadata_json TEXT NOT NULL,
+  error TEXT,
+  updated_at INTEGER NOT NULL
+);
 `;

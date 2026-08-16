@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mountGuardConfigFromEnv, oauthWriteToolsEnabled, writeToolsEnabledByDefault } from "./env.js";
+import {
+  mountGuardConfigFromEnv,
+  oauthWriteToolsEnabled,
+  semanticSearchEnabledFromEnv,
+  writeToolsEnabledByDefault,
+} from "./env.js";
 
 const ORIGINAL_READONLY = process.env.OBSIDIAN_EVERYWHERE_READONLY;
 const ORIGINAL_OAUTH_WRITE = process.env.OAUTH_ENABLE_WRITE_TOOLS;
@@ -7,6 +12,7 @@ const ORIGINAL_REQUIRE_NONEMPTY = process.env.OBSIDIAN_EVERYWHERE_REQUIRE_NONEMP
 const ORIGINAL_MOUNT_GUARD = process.env.OBSIDIAN_EVERYWHERE_MOUNT_GUARD;
 const ORIGINAL_MOUNT_SENTINEL = process.env.OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL;
 const ORIGINAL_MOUNT_RECHECK = process.env.OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS;
+const ORIGINAL_SEMANTIC = process.env.OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC;
 
 afterEach(() => {
   if (ORIGINAL_READONLY === undefined) delete process.env.OBSIDIAN_EVERYWHERE_READONLY;
@@ -21,6 +27,20 @@ afterEach(() => {
   else process.env.OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL = ORIGINAL_MOUNT_SENTINEL;
   if (ORIGINAL_MOUNT_RECHECK === undefined) delete process.env.OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS;
   else process.env.OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS = ORIGINAL_MOUNT_RECHECK;
+  if (ORIGINAL_SEMANTIC === undefined) delete process.env.OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC;
+  else process.env.OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC = ORIGINAL_SEMANTIC;
+});
+
+describe("semanticSearchEnabledFromEnv", () => {
+  it("defaults to the low-memory disabled state", () => {
+    delete process.env.OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC;
+    expect(semanticSearchEnabledFromEnv()).toBe(false);
+  });
+
+  it("accepts an explicit opt-in", () => {
+    process.env.OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC = "true";
+    expect(semanticSearchEnabledFromEnv()).toBe(true);
+  });
 });
 
 describe("mountGuardConfigFromEnv", () => {

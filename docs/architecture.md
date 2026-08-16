@@ -11,7 +11,7 @@ Vault Bridge; the transport does not change the vault model.
 │  obsidian-everywhere (single Node.js/TypeScript package)   │
 │                                                             │
 │  Vault Graph Engine                                        │
-│   parser → SQLite + FTS/embeddings → filesystem watcher    │
+│   parser/extractors → SQLite + FTS/cache → file watcher    │
 │   (src/watcher)                                             │
 │   SQLite  ↔  in-memory graph (src/graph, graphology)        │
 │                                                             │
@@ -71,6 +71,14 @@ full-text search. `db.ts` (`VaultDB`) is the only thing that touches the
 database — every query used by a tool lives there as a named method
 (`getBacklinks`, `findOrphans`, `search`, ...), not as ad hoc SQL scattered
 through the tool layer.
+
+Non-Markdown files use a separate `attachment_extractions` cache keyed by the
+indexed file hash and extractor version. `read_file` extracts the requested
+file on demand; `search_files` advances a bounded, sequential extraction queue
+and searches the same FTS5 index. PDF, OOXML, OpenDocument, EPUB, RTF, plain
+text/code/data, and common images are handled locally. Inputs, ZIP entries,
+extracted character counts, and inline image sizes are capped so a large or
+malformed attachment cannot turn a request into an unbounded memory load.
 
 `scan.ts` is where indexing actually happens:
 
@@ -144,14 +152,22 @@ DECISIONS.md D24.
 
 ## MCP Tool Layer (`src/mcp/tools.ts`, `src/mcp/server.ts`)
 
-Twenty read tools are always available and nineteen write tools can be enabled,
-for 39 total. Their schemas and behavior are shared across transports. Read
+Twenty-two read tools are always available and nineteen write tools can be enabled,
+for 41 total. Their schemas and behavior are shared across transports. Read
 tools cover graph navigation, full-text and semantic retrieval,
 structured/paginated note reads, explicit listing, regex search, persisted
 Obsidian settings, mount status, and static Base validation. Write tools cover
 creation/append, lifecycle operations, guarded partial edits, frontmatter/tag
 changes, dry-run/rollback bulk operations, and persisted Obsidian
 configuration.
+
+The runtime defaults to a low-memory profile. Graph, SQLite/FTS, document
+extraction, and every non-semantic tool remain enabled; the transformer-backed
+semantic methods require `OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC=true`. A fixture
+workload covering PDF, DOCX, and text extraction peaks around 123 MiB RSS on
+the development machine, enforced by `npm run memory:smoke`. The optional
+multilingual transformer exceeded 500 MiB RSS in the same measurement and is
+therefore never loaded implicitly.
 `resolveNoteArg` lets every note-oriented tool accept a note
 reference as a path, bare title, or alias — it reuses the exact same
 `vault/resolve.ts` logic that in-vault links use, so "the way Claude refers

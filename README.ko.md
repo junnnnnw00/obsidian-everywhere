@@ -62,7 +62,7 @@ vault (.md 파일)
 SQLite 인덱스 (FTS5)  ⇄  인메모리 그래프 (graphology)
   │                         n-hop · 최단 경로 · PageRank
   ▼
-39개 MCP 도구
+41개 MCP 도구
   │
   ▼
 로컬 stdio  ·  인증된 원격 HTTP  ·  OAuth HTTP
@@ -74,12 +74,18 @@ SQLite 인덱스 (FTS5)  ⇄  인메모리 그래프 (graphology)
 - **Remote Vault Bridge** — 외부 서버의 에이전트가 인증된 Streamable
   HTTP를 통해 같은 검색·그래프·컨텍스트·편집 도구를 사용합니다. 사설망
   또는 ngrok 같은 HTTPS tunnel을 사용하며 vault 자체는 내 컴퓨터에 남습니다.
-- **완전 로컬 시맨틱 검색** — `semantic_search`와 `get_related`의 `method: "semantic"`은 소형 다국어 임베딩 모델(`multilingual-e5-small`)을 로컬에서 실행합니다. API key, 클라우드 계정, Ollama 프로세스 필요 없음 — 최초 1회(~120MB)만 받으면 이후 완전 오프라인으로 동작합니다.
+- **Vault 전체 파일 읽기** — Markdown뿐 아니라 텍스트·코드·데이터 파일,
+  PDF, DOCX, PPTX, XLSX, OpenDocument, EPUB, RTF, 일반 이미지까지 로컬에서
+  지연 추출하고 캐시합니다. `search_files`로 문서 내용도 검색할 수 있습니다.
+- **선택적 로컬 시맨틱 검색** — `semantic_search`와 `get_related`의
+  `method: "semantic"`은 다국어 임베딩 모델을 로컬에서 실행합니다. 기본 서버를
+  200MB 아래로 유지하기 위해 비활성화되어 있으며, 선택 런타임 설치 후
+  `OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC=true`로 켤 수 있습니다.
 - **안전한 쓰기와 mount 복구** — 부분 편집, dry-run 우선 일괄 작업,
   rollback snapshot, 복구 가능한 삭제를 제공합니다. opt-in Beta mount
   guard는 외장 드라이브·NAS·container mount가 사라지면 인덱스를 보존하고
   쓰기를 차단한 뒤, 복귀 시 전체 재조정합니다.
-- **39개 MCP 도구** — 구조화 읽기, 그래프 탐색, 시맨틱 검색, 안전한
+- **41개 MCP 도구** — 구조화 읽기, 첨부파일 추출, 그래프 탐색, 시맨틱 검색, 안전한
   수명주기 작업, Obsidian 설정과 명시적인 `vault_status`를 제공합니다.
 
 ## 두 가지 핵심 기능
@@ -109,8 +115,10 @@ HTTPS tunnel로 노출한 뒤 원격 MCP 클라이언트에 등록합니다. 원
 | `vault_overview` | 노트 수, 주요 태그, PageRank 허브, 최근 수정 노트 확인 |
 | `vault_status` | mount 상태, 인덱스 freshness, 쓰기 가능 여부와 마지막 전체 재조정 확인 |
 | `search_notes` | 본문·제목 전문 검색과 태그·폴더 필터 (한글 등 CJK 복합어 부분검색은 trigram으로 보완 — DECISIONS.md D9 참고) |
-| `semantic_search` | 로컬 임베딩(`multilingual-e5-small`, 외부 서비스 없음) 기반 의미 검색 — 쿼리와 표현이 달라도 개념적으로 관련된 노트를 찾음 |
+| `search_files` | PDF·Office/OpenDocument·EPUB·RTF·텍스트/코드/데이터 첨부파일 내용 검색 |
+| `semantic_search` | 선택적 로컬 임베딩 기반 의미 검색 — 기본 저메모리 모드에서는 비활성화 |
 | `read_note` | `content`, frontmatter, 링크, 태그를 구조화해 반환하고 줄 단위 페이지네이션 지원 |
+| `read_file` | 모든 색인 파일 읽기 — 문서는 page/slide/sheet 선택, 이미지는 MCP 이미지로 반환 |
 | `list_notes` | 폴더 범위와 페이지네이션을 지원하는 명시적 노트 목록 |
 | `list_folder` | 한 폴더 바로 아래의 하위 폴더·노트·첨부파일 목록 |
 | `regex_search` | 파일·줄·문맥을 포함한 정규식 검색 |
@@ -178,7 +186,7 @@ npx -y obsidian-everywhere doctor /절대/경로/내/vault
 | | **Obsidian Everywhere** | [obsidian-mcp-server](https://github.com/cyanheads/obsidian-mcp-server) | [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) | [TurboVault](https://github.com/epistates/turbovault) |
 |---|---|---|---|---|
 | 설치 | `npx` | `npx` | Obsidian community plugin | `cargo install` / binary |
-| 공개된 도구 수 | **39** | 14 | 16 | 74 |
+| 공개된 도구 수 | **41** | 14 | 16 | 74 |
 | Obsidian 실행 필요 | **아니요** | 예 | 예 | **아니요** |
 | 대표 그래프 기능 | PageRank·최단 경로·n-hop·미해결 링크 | 구조화 읽기의 outgoing links | 실행 중인 Obsidian metadata/search | multi-hop·centrality·cluster·추천 |
 | 안전한 편집 | 부분 편집·bulk dry-run·snapshot·rollback | 정밀 편집·frontmatter/tag 관리 | live heading/block/frontmatter patch | conflict hash·audit rollback·Git batch |
@@ -304,6 +312,7 @@ ChatGPT Desktop 프로세스에서도 이 환경 변수를 사용할 수 있어�
 | `OAUTH_ISSUER_URL` | `oauth-http-cli.js` | 공개 HTTPS origin |
 | `OAUTH_LOGIN_SECRET` | `oauth-http-cli.js` | 단일 사용자 로그인 secret |
 | `OBSIDIAN_EVERYWHERE_READONLY` | stdio, bearer HTTP | `true`이면 쓰기 도구 비활성화 |
+| `OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC` | 전체 | 선택적 `@huggingface/transformers` 설치 후 시맨틱 검색 활성화. 500MB 이상 RSS를 사용할 수 있어 기본값은 꺼짐 |
 | `OBSIDIAN_EVERYWHERE_MOUNT_GUARD` | 모든 실행 방식 | opt-in Beta mount 장애 보호와 자동 재조정 |
 | `OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL` | 모든 실행 방식 | `.obsidian/app.json` 같은 vault-relative identity 경로 |
 | `OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS` | 모든 실행 방식 | 실행 중 mount 확인 간격(기본 `5000`) |
@@ -319,14 +328,15 @@ npm test
 npm run typecheck
 npm run lint
 npm run format:check
+npm run memory:smoke
 ```
 
 `fixtures/test-vault/`에는 piped alias, heading·block link, embed, frontmatter wikilink, 중첩 태그, 같은 이름의 파일, 미해결 링크, 코드 블록 제외, 한국어 파일명·태그·wikilink를 검증하는 fixture가 있습니다.
 
 ## 프로젝트 상태
 
-현재 v0.7.0은 그래프·로컬 시맨틱 context engine, stdio·bearer HTTP·OAuth
-HTTP transport, MCP 도구 39개, 보호된 부분·일괄 편집과 Codex·ChatGPT
+현재 v0.7.0은 그래프·선택적 로컬 시맨틱 context engine, stdio·bearer HTTP·OAuth
+HTTP transport, MCP 도구 41개, 보호된 부분·일괄 편집과 Codex·ChatGPT
 Desktop·Claude 설정을 제공합니다. Remote Vault Bridge는 정식 배포 경로이며,
 선택형 mount guard는 removable drive·NAS·container mount 환경의 피드백을
 받는 **Beta**입니다.

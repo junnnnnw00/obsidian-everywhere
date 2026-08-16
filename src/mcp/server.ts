@@ -58,7 +58,7 @@ const IDEMPOTENT_WRITE = {
 };
 
 export const SERVER_INSTRUCTIONS =
-  "Use vault_overview to orient yourself in an unfamiliar vault and vault_status when availability may have changed. Prefer get_context_bundle for broad topic context and read_note for one specific note or heading. Use list_folder/list_notes for file enumeration, search_notes for full-text search, and regex_search for patterns. Treat note paths as vault-relative. read_note returns structured fields and line pagination; follow pagination.nextOffset for long notes. bulk_replace defaults to dry-run and returns a rollback ID when applied. Before calling any write tool, confirm that the user intends to modify the vault; use read tools without confirmation. Mount-guard blocks writes while a removable/network vault is unavailable or reconciling.";
+  "Use vault_overview to orient yourself in an unfamiliar vault and vault_status when availability may have changed. Prefer get_context_bundle for broad topic context and read_note for one specific note or heading. Use read_file for attachments including PDF, DOCX, PPTX, XLSX, text/code/data files, and images; use search_files to search extracted attachment text. Use list_folder/list_notes for file enumeration, search_notes for note full-text search, and regex_search for patterns. Treat all paths as vault-relative. read_note and read_file paginate long text; follow the reported next offset. bulk_replace defaults to dry-run and returns a rollback ID when applied. Before calling any write tool, confirm that the user intends to modify the vault; use read tools without confirmation. Mount-guard blocks writes while a removable/network vault is unavailable or reconciling.";
 
 export interface CreateServerOptions {
   /** Register all mutation/config write tools. Defaults to true — set to false for a read-only deployment. */
@@ -170,6 +170,53 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
       annotations: READ_ONLY,
     },
     async (args) => textResult(tools.regexSearch(engine, args)),
+  );
+
+  server.registerTool(
+    "search_files",
+    {
+      title: "Search Files",
+      description:
+        "Search extracted text from non-Markdown vault files (PDF, DOCX, PPTX, XLSX, OpenDocument, EPUB, RTF, and text/code/data files). Extraction is local, cached, and incremental.",
+      inputSchema: strictSchema({
+        query: z.string().optional().describe("Full-text query. Omit to list attachments."),
+        folder: z.string().optional().describe("Optional vault-relative folder scope."),
+        extension: z.string().optional().describe("Optional extension filter, e.g. pdf or pptx."),
+        limit: z.number().int().positive().max(100).optional().describe("Max results (default 10)."),
+      }),
+      annotations: READ_ONLY,
+    },
+    async (args) => textResult(await tools.searchFiles(engine, args)),
+  );
+
+  server.registerTool(
+    "read_file",
+    {
+      title: "Read Vault File",
+      description:
+        "Read any indexed vault file. Markdown delegates to read_note; PDF/Office/OpenDocument/EPUB/RTF/text/code/data files return locally extracted, paginated text; supported images return MCP image content. Legacy or unknown binary formats return metadata and a clear unsupported status.",
+      inputSchema: strictSchema({
+        path: z.string().describe("Vault-relative file path (or resolvable filename)."),
+        page: z.number().int().positive().optional().describe("PDF page number."),
+        slide: z.number().int().positive().optional().describe("PPTX slide number."),
+        sheet: z.string().optional().describe("XLSX sheet name."),
+        offset: z.number().int().nonnegative().optional().describe("Zero-based extracted-text line offset."),
+        limit: z.number().int().positive().max(5000).optional().describe("Maximum text lines (default 500)."),
+      }),
+      annotations: READ_ONLY,
+    },
+    async (args) => {
+      const result = await tools.readFile(engine, args);
+      return {
+        content: [
+          { type: "text" as const, text: result.text },
+          ...(result.image
+            ? [{ type: "image" as const, data: result.image.data, mimeType: result.image.mimeType }]
+            : []),
+        ],
+        ...(result.error ? { isError: true } : {}),
+      };
+    },
   );
 
   server.registerTool(
@@ -335,7 +382,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
     {
       title: "Get Related",
       description:
-        "Recommend similar notes that are NOT directly linked to the given note. Default method 'jaccard' uses shared tags and shared 1-hop neighbors, to surface notes that probably should be linked but aren't yet. Method 'semantic' instead uses embedding similarity (meaning-based, not requiring shared tags/links at all) -- lazily computes/caches embeddings on first use, which may add latency and returns fewer results until the vault is fully embedded.",
+        "Recommend similar notes that are NOT directly linked to the given note. Default method 'jaccard' is lightweight and uses shared tags and shared 1-hop neighbors. The optional method 'semantic' uses local embedding similarity and requires OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC=true because its multilingual model exceeds the default low-memory budget.",
       inputSchema: strictSchema({
         path: z.string().describe("Note path, title, or alias."),
         limit: z.number().int().positive().max(50).optional().describe("Max results (default 5)."),
@@ -351,7 +398,7 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
     {
       title: "Semantic Search",
       description:
-        "Meaning-based search via embedding similarity (multilingual-e5-small) -- finds conceptually related notes even when they don't share the query's exact words, unlike search_notes' full-text matching. Lazily computes/caches embeddings on first use (up to 50 notes per call); if the vault isn't fully embedded yet, the response says how many notes remain and results may be incomplete until a later call finishes indexing them.",
+        "Optional meaning-based search via local multilingual-e5-small embeddings. Requires OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC=true because the model can exceed 500 MiB RSS; the default low-memory mode keeps graph, FTS, attachment search, and Jaccard related-note search available without loading it.",
       inputSchema: strictSchema({
         query: z.string().min(1).describe("Free-text search query."),
         limit: z.number().int().positive().max(50).optional().describe("Max results (default 10)."),

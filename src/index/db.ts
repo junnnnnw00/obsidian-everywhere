@@ -40,6 +40,18 @@ export interface BacklinkRow {
   context: string | null;
 }
 
+export interface AttachmentExtractionRow {
+  file_id: number;
+  source_hash: string;
+  extractor_version: string;
+  status: "extracted" | "image" | "unsupported" | "error";
+  mime_type: string;
+  text_content: string | null;
+  metadata_json: string;
+  error: string | null;
+  updated_at: number;
+}
+
 export class VaultDB {
   readonly db: Database.Database;
 
@@ -97,6 +109,76 @@ export class VaultDB {
 
   getAllFiles(): FileRow[] {
     return this.db.prepare("SELECT * FROM files").all() as FileRow[];
+  }
+
+  getAttachmentExtraction(fileId: number): AttachmentExtractionRow | undefined {
+    return this.db.prepare("SELECT * FROM attachment_extractions WHERE file_id = ?").get(fileId) as
+      AttachmentExtractionRow | undefined;
+  }
+
+  getFilesNeedingAttachmentExtraction(extractorVersion: string, limit: number): FileRow[] {
+    return this.db
+      .prepare(
+        `SELECT f.* FROM files f
+         LEFT JOIN attachment_extractions a ON a.file_id = f.id
+         WHERE f.is_markdown = 0
+           AND (a.file_id IS NULL OR a.source_hash != f.hash OR a.extractor_version != ?)
+         ORDER BY f.id
+         LIMIT ?`,
+      )
+      .all(extractorVersion, limit) as FileRow[];
+  }
+
+  countFilesNeedingAttachmentExtraction(extractorVersion: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS count FROM files f
+         LEFT JOIN attachment_extractions a ON a.file_id = f.id
+         WHERE f.is_markdown = 0
+           AND (a.file_id IS NULL OR a.source_hash != f.hash OR a.extractor_version != ?)`,
+      )
+      .get(extractorVersion) as { count: number };
+    return row.count;
+  }
+
+  upsertAttachmentExtraction(
+    file: FileRow,
+    extractorVersion: string,
+    extraction: {
+      status: AttachmentExtractionRow["status"];
+      mimeType: string;
+      text: string | null;
+      metadata: Record<string, unknown>;
+      error: string | null;
+    },
+  ): void {
+    this.db
+      .prepare(
+        `INSERT INTO attachment_extractions
+           (file_id, source_hash, extractor_version, status, mime_type, text_content, metadata_json, error, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(file_id) DO UPDATE SET
+           source_hash=excluded.source_hash,
+           extractor_version=excluded.extractor_version,
+           status=excluded.status,
+           mime_type=excluded.mime_type,
+           text_content=excluded.text_content,
+           metadata_json=excluded.metadata_json,
+           error=excluded.error,
+           updated_at=excluded.updated_at`,
+      )
+      .run(
+        file.id,
+        file.hash,
+        extractorVersion,
+        extraction.status,
+        extraction.mimeType,
+        extraction.text,
+        JSON.stringify(extraction.metadata),
+        extraction.error,
+        Date.now(),
+      );
+    this.upsertFts(file.id, file.path, file.title, extraction.text);
   }
 
   getFileCounts(): { markdown: number; attachments: number } {

@@ -29,12 +29,17 @@ let pipelinePromise: Promise<any> | null = null;
  * model's own guidance for symmetric comparisons.
  */
 export const defaultEmbedder: Embedder = async (texts, kind) => {
-  pipelinePromise ??= import("@huggingface/transformers").then(({ env, pipeline }) => {
-    env.cacheDir = MODEL_CACHE_DIR;
-    // q8 (int8-quantized) instead of the ~470MB fp32 default -- ~120MB, and
-    // fine for retrieval-quality embeddings (this isn't generation).
-    return pipeline("feature-extraction", EMBEDDING_MODEL, { dtype: "q8" });
-  });
+  pipelinePromise ??= import("@huggingface/transformers")
+    .catch(() => {
+      throw new Error(
+        "Optional semantic runtime is not installed. Run `npm install @huggingface/transformers@^4.2.0`, then restart with OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC=true.",
+      );
+    })
+    .then(({ env, pipeline }) => {
+      env.cacheDir = MODEL_CACHE_DIR;
+      // q8 (int8-quantized) instead of the ~470MB fp32 default -- ~120MB on disk.
+      return pipeline("feature-extraction", EMBEDDING_MODEL, { dtype: "q8" });
+    });
   const extractor = await pipelinePromise;
   const prefixed = texts.map((t) => `${kind}: ${t}`);
   const output = await extractor(prefixed, { pooling: "mean", normalize: true });

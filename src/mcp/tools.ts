@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import matter from "gray-matter";
+import { MAX_INLINE_IMAGE_BYTES, isImagePath } from "../attachments/extract.js";
 import type { FileRow } from "../index/db.js";
 import { EMBEDDING_MODEL, bufferToVector, cosineSimilarity } from "../index/embeddings.js";
 import { parseNote } from "../parser/markdown.js";
@@ -21,6 +22,11 @@ export function resolveNoteArg(engine: VaultEngine, input: string): FileRow | un
   const index = engine.db.buildResolverIndex();
   const resolved = resolveLink(normalized, index);
   return resolved ? engine.db.getFileByPath(resolved.path) : undefined;
+}
+
+/** Resolve any indexed vault file, including attachments. */
+export function resolveFileArg(engine: VaultEngine, input: string): FileRow | undefined {
+  return resolveNoteArg(engine, input);
 }
 
 export function vaultOverview(engine: VaultEngine): string {
@@ -82,7 +88,9 @@ export function searchNotes(engine: VaultEngine, args: SearchNotesArgs): string 
 
   if (args.query && args.query.trim().length > 0) {
     const hits = engine.db.search(args.query.trim(), Math.max(limit * 3, 30));
-    candidates = hits.map((h) => engine.db.getFileByPath(h.path)).filter((f): f is FileRow => Boolean(f));
+    candidates = hits
+      .map((h) => engine.db.getFileByPath(h.path))
+      .filter((f): f is FileRow => f !== undefined && f.is_markdown === 1);
   } else {
     candidates = engine.db.getAllFiles().filter((f) => f.is_markdown === 1);
   }
@@ -127,6 +135,9 @@ export interface SemanticSearchArgs {
 export async function semanticSearch(engine: VaultEngine, args: SemanticSearchArgs): Promise<string> {
   const query = args.query?.trim();
   if (!query) return "Error: query must not be empty.";
+  if (!engine.semanticSearchEnabled) {
+    return "Semantic search is disabled in low-memory mode. Set OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC=true and restart the server to opt in (the bundled multilingual model may use more than 500 MiB RSS).";
+  }
   const limit = args.limit ?? 10;
   const folder = args.folder?.replace(/^\/+|\/+$/g, "");
 
@@ -205,6 +216,148 @@ export function listFolder(engine: VaultEngine, args: { folder?: string }): stri
       ? files.map((file) => `- ${file.path}${file.is_markdown === 1 ? " (note)" : " (attachment)"}`)
       : ["_none_"]),
   ].join("\n");
+}
+
+export interface SearchFilesArgs {
+  query?: string;
+  folder?: string;
+  extension?: string;
+  limit?: number;
+}
+
+/** Full-text search over extracted attachment content (PDF/Office/text/etc.). */
+export async function searchFiles(engine: VaultEngine, args: SearchFilesArgs): Promise<string> {
+  const limit = args.limit ?? 10;
+  // Sequential, bounded extraction keeps one search call from turning into a
+  // memory/latency spike on a large vault. Repeated calls drain the backlog.
+  const extraction = await engine.ensureAttachmentExtractionsFresh(10);
+  const folder = args.folder?.replace(/^\/+|\/+$/g, "");
+  const extension = args.extension?.replace(/^\./, "").toLowerCase();
+  const query = args.query?.trim();
+  const hits = query ? engine.db.search(query, Math.max(limit * 5, 50)) : [];
+  const snippets = new Map(hits.map((hit) => [hit.path, hit.snippet]));
+  let files = query
+    ? hits.map((hit) => engine.db.getFileByPath(hit.path)).filter((file): file is FileRow => Boolean(file))
+    : engine.db.getAllFiles();
+  files = files
+    .filter((file) => file.is_markdown === 0)
+    .filter((file) => !folder || file.path.startsWith(`${folder}/`))
+    .filter((file) => !extension || file.path.toLowerCase().endsWith(`.${extension}`))
+    .slice(0, limit);
+
+  const lines = [`# File Search Results (${files.length})`, ""];
+  if (extraction.remaining > 0) {
+    lines.push(
+      `_${extraction.remaining} attachment(s) still await extraction (processed ${extraction.extracted} now); call again for a complete vault-wide search._`,
+      "",
+    );
+  }
+  if (!files.length) {
+    lines.push("_No matching files found._");
+    return lines.join("\n");
+  }
+  for (const file of files) {
+    const cached = engine.db.getAttachmentExtraction(file.id);
+    lines.push(`## [[${file.path}]]`);
+    lines.push(`- **Type**: ${cached?.mime_type ?? "not extracted"}`);
+    lines.push(`- **Status**: ${cached?.status ?? "pending"}`);
+    const snippet = snippets.get(file.path);
+    if (snippet) lines.push(`- **Match**: ${snippet}`);
+    if (cached?.error) lines.push(`- **Note**: ${cached.error}`);
+    lines.push("");
+  }
+  return lines.join("\n").trim();
+}
+
+export interface ReadFileArgs {
+  path: string;
+  page?: number;
+  slide?: number;
+  sheet?: string;
+  offset?: number;
+  limit?: number;
+}
+
+export interface ReadFileResult {
+  text: string;
+  image?: { data: string; mimeType: string };
+  error?: string;
+}
+
+function markedSection(text: string, marker: string): string | null {
+  const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = text.match(new RegExp(`^## ${escaped}\\s*\\n([\\s\\S]*?)(?=^## |$)`, "m"));
+  return match?.[1]?.trim() ?? null;
+}
+
+/** Read a Markdown note or any indexed attachment through one safe vault-relative API. */
+export async function readFile(engine: VaultEngine, args: ReadFileArgs): Promise<ReadFileResult> {
+  const file = resolveFileArg(engine, args.path);
+  if (!file) return { text: `File not found: ${args.path}`, error: `File not found: ${args.path}` };
+  if (file.is_markdown === 1) return { text: readNote(engine, args) };
+
+  const extraction = await engine.ensureAttachmentExtracted(file.id);
+  if (!extraction) return { text: `File not found: ${args.path}`, error: `File not found: ${args.path}` };
+  const backlinks = engine.db.getBacklinks(file.path);
+  const metadata = Object.entries(extraction.metadata)
+    .map(([key, value]) => `- **${key}**: ${Array.isArray(value) ? value.join(", ") : String(value)}`)
+    .join("\n");
+  const header = [
+    `# ${file.path}`,
+    "",
+    `- **MIME type**: ${extraction.mimeType}`,
+    `- **Status**: ${extraction.status}`,
+    `- **Modified**: ${new Date(file.mtime).toISOString()}`,
+    `- **Referenced by (${backlinks.length})**: ${backlinks.length ? backlinks.map((row) => `[[${row.sourcePath}]]`).join(", ") : "_none_"}`,
+    ...(metadata ? [metadata] : []),
+    ...(extraction.error ? [`- **Note**: ${extraction.error}`] : []),
+  ];
+
+  if (isImagePath(file.path)) {
+    const absPath = resolveExistingVaultPath(engine.vaultDir, file.path);
+    const image = readFileSync(absPath);
+    if (image.length > MAX_INLINE_IMAGE_BYTES) {
+      return {
+        text: [
+          ...header,
+          "",
+          `Image is too large to inline (${image.length} bytes; limit ${MAX_INLINE_IMAGE_BYTES}).`,
+        ].join("\n"),
+      };
+    }
+    return { text: header.join("\n"), image: { data: image.toString("base64"), mimeType: extraction.mimeType } };
+  }
+
+  if (!extraction.text) {
+    return {
+      text: [...header, "", extraction.error ?? "No readable text was extracted from this binary file."].join("\n"),
+    };
+  }
+
+  let selected = extraction.text;
+  let selector: string | undefined;
+  if (args.page !== undefined) selector = `Page ${args.page}`;
+  else if (args.slide !== undefined) selector = `Slide ${args.slide}`;
+  else if (args.sheet !== undefined) selector = `Sheet: ${args.sheet}`;
+  if (selector) {
+    const section = markedSection(selected, selector);
+    if (section === null)
+      return {
+        text: [...header, "", `Section not found: ${selector}`].join("\n"),
+        error: `Section not found: ${selector}`,
+      };
+    selected = section;
+  }
+
+  const lines = selected.split(/\r?\n/);
+  const offset = Math.min(args.offset ?? 0, lines.length);
+  const limit = args.limit ?? 500;
+  const page = lines.slice(offset, offset + limit);
+  const nextOffset = offset + page.length;
+  header.push(
+    `- **Text page**: lines ${offset + 1}-${nextOffset} of ${lines.length}${nextOffset < lines.length ? `; continue with offset ${nextOffset}` : ""}`,
+  );
+  return { text: [...header, "", "---", "", page.join("\n")].join("\n") };
 }
 
 export interface NoteListData {
@@ -683,6 +836,9 @@ function jaccard(a: Set<string>, b: Set<string>): number {
  * caller-chosen method sidesteps that without changing the default.
  */
 async function getRelatedSemantic(engine: VaultEngine, file: FileRow, limit: number): Promise<string> {
+  if (!engine.semanticSearchEnabled) {
+    return `# Related to ${file.path}\n\n_Semantic similarity is disabled in low-memory mode. Set OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC=true and restart the server to opt in (the bundled multilingual model may use more than 500 MiB RSS). Use the default Jaccard method for a lightweight alternative._`;
+  }
   await engine.ensureEmbeddingsFresh(EMBEDDING_BATCH_LIMIT);
   const ownEmbedding = engine.db.getEmbedding(file.id, EMBEDDING_MODEL);
   if (!ownEmbedding) {

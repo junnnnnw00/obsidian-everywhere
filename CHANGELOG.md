@@ -6,6 +6,20 @@ project doesn't yet follow strict semver pre-1.0.
 
 ## [Unreleased]
 
+### Added
+
+- `read_file` and `search_files` provide local, cached access to text/code/data,
+  PDF, DOCX, PPTX, XLSX, OpenDocument, EPUB, RTF, and common image attachments.
+- A repeatable `npm run memory:smoke` gate covers lazy attachment extraction.
+
+### Changed
+
+- Transformer-backed semantic search now requires its optional peer plus an
+  explicit `OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC=true` opt-in. The default
+  install no longer includes its vulnerable heavyweight native runtime. The
+  default graph, FTS, and attachment workload stays under the 200 MiB RSS target; the optional
+  multilingual model can exceed 500 MiB RSS.
+
 ## [0.7.0] — 2026-07-29
 
 ### Added

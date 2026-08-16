@@ -176,3 +176,55 @@ reads during outage — rejected because clearly marked stale search/context can
 still be useful; writes are the operation that must fail closed. Automatically
 create a hidden sentinel — rejected because the server should not mutate a
 vault merely to identify it.
+
+## D25. Attachment content is extracted lazily, locally, sequentially, and cached
+
+**Decision:** Index every non-excluded vault file as before, and add an
+`attachment_extractions` cache keyed by file hash plus extractor version.
+`read_file` extracts one requested file immediately; `search_files` processes a
+bounded queue of at most ten stale attachments per call. Extraction is always
+sequential. PDF uses `pdfjs-dist`; OOXML/OpenDocument/EPUB containers use the
+exact `adm-zip` dependency and narrowly scoped XML text extraction. Plain
+text/code/data, RTF, and common images are handled directly. Source size, PDF
+size, ZIP entry expansion, extracted characters, and inline image payloads all
+have hard limits. Extracted text joins the existing FTS index, while Markdown
+search remains explicitly filtered to notes.
+
+**Reason:** The vault is often a knowledge graph whose evidence lives in PDFs,
+slides, spreadsheets, and documents. Local lazy extraction preserves privacy,
+avoids startup spikes, and means unchanged files pay the parsing cost only once.
+The measured PDF+DOCX+text fixture workload peaks at about 123 MiB RSS, within
+the project's 200 MiB default-process ceiling.
+
+**Alternatives:** Eagerly parse the entire vault at startup — rejected for
+latency and memory. Upload files to a cloud conversion API — rejected for
+privacy and offline operation. `officeparser` — evaluated and removed because
+its dependency tree introduced high-severity vulnerable PDF packages. Native
+LibreOffice/Tika subprocesses — broader fidelity, but rejected as heavyweight
+system dependencies for the default FOSS install. Unknown binary formats remain
+indexed with metadata and an explicit unsupported status rather than being
+silently decoded or omitted.
+
+## D26. The default runtime is low-memory; transformer semantics are opt-in
+
+**Decision:** `@huggingface/transformers` is an optional peer and
+`multilingual-e5-small` is loaded only when the peer is installed and
+`OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC=true`. The `semantic_search` tool remains
+discoverable and returns an actionable low-memory message when disabled;
+`get_related` keeps its lightweight Jaccard default. Injected test embedders
+enable the semantic path automatically.
+
+**Reason:** RSS measurements on the actual Node process showed roughly 69 MiB
+idle, 123 MiB after attachment extraction, but more than 500 MiB after loading
+and using the multilingual q8 transformer. A q4 experiment was worse (over 600
+MiB after inference). Leaving this implicit would violate the explicit
+100–200 MiB operating target on an 8GB machine. Graph traversal, FTS, context
+bundles, attachments, and writes do not require the model.
+
+**Alternatives:** Keep lazy loading as sufficient — rejected because memory
+remains retained after first use. Run the model in a child process — rejected
+because total machine memory still exceeds the user's limit. Replace it with an
+English-only tiny model — rejected because Korean/multilingual vault support is
+a core requirement. Label lexical hashing as semantic search — rejected as
+misleading. A genuinely small multilingual model can become a future default
+after repeatable quality and RSS gates pass.
