@@ -6,6 +6,8 @@ project doesn't yet follow strict semver pre-1.0.
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-08-17
+
 ### Added
 
 - `read_file` and `search_files` provide local, cached access to text/code/data,
@@ -215,7 +217,8 @@ Initial release. A graph-native MCP server for Obsidian vaults.
 - The OAuth provider is single-user by design, not a general identity
   system (see DECISIONS.md D11).
 
-[Unreleased]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.5.1...v0.5.2

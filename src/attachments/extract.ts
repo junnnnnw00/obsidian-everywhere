@@ -370,7 +370,7 @@ export async function extractAttachment(absPath: string, size: number): Promise<
         error: "Binary format has no local text extractor",
       };
     }
-    const capped = limited(result.text.replace(/\u0000/g, ""));
+    const capped = limited(result.text.split("\u0000").join(""));
     return {
       status: "extracted",
       mimeType,

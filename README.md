@@ -468,7 +468,7 @@ exclusion, and Korean filenames/tags/wikilinks). It's what every test in
 
 ## Project status
 
-Current v0.7.0 includes the graph and optional local semantic context engine, all three
+Current v0.8.0 includes the graph and optional local semantic context engine, all three
 transports (stdio, bearer HTTP, OAuth HTTP), 41 MCP tools, guarded partial and
 bulk writes, and client setup for Codex, ChatGPT Desktop, and Claude. Remote
 Vault Bridge is a first-class deployment path. Its opt-in mount guard remains
