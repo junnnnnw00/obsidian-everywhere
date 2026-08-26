@@ -6,6 +6,13 @@ project doesn't yet follow strict semver pre-1.0.
 
 ## [Unreleased]
 
+## [0.9.1] — 2026-08-26
+
+### Fixed
+
+- Shortened the MCP Registry description to its 100-character limit and added
+  a release preflight check so invalid registry metadata fails before publish.
+
 ## [0.9.0] — 2026-08-26
 
 ### Added

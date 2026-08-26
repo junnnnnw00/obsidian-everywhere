@@ -1,7 +1,7 @@
 {
   "name": "obsidian-everywhere",
-  "version": "0.9.0",
-  "description": "Graph context, semantic search, guarded edits, and reviewable Git for local Obsidian vaults over MCP.",
+  "version": "0.9.1",
+  "description": "Graph context, semantic search, guarded edits, and reviewable Git for local Obsidian vaults.",
   "mcpName": "io.github.junnnnnw00/obsidian-everywhere",
   "license": "MIT",
   "type": "module",

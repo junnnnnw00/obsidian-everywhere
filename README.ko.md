@@ -352,7 +352,7 @@ npm run memory:smoke
 
 ## 프로젝트 상태
 
-현재 v0.9.0은 그래프·선택적 로컬 시맨틱 context engine, stdio·bearer HTTP·OAuth
+현재 v0.9.1은 그래프·선택적 로컬 시맨틱 context engine, stdio·bearer HTTP·OAuth
 HTTP transport, 핵심 MCP 도구 41개와 선택형 Vault Git 도구 5개, 보호된 부분·일괄 편집과 Codex·ChatGPT
 Desktop·Claude 설정을 제공합니다. Remote Vault Bridge는 정식 배포 경로이며,
 선택형 mount guard는 removable drive·NAS·container mount 환경의 피드백을

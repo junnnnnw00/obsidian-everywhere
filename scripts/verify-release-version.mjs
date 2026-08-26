@@ -21,6 +21,8 @@ const versionSource = await readFile(new URL("../src/version.ts", import.meta.ur
 const sourceMatch = versionSource.match(/^export const VERSION = ["']([^"']+)["'];\s*$/u);
 const canonicalVersion = packageJson.version;
 const expectedVersion = process.argv[2];
+const registryDescription = serverJson.description;
+const registryDescriptionLength = typeof registryDescription === "string" ? [...registryDescription].length : 0;
 const checks = [
   ["package.json version", canonicalVersion],
   ["package-lock.json version", packageLock.version],
@@ -49,6 +51,16 @@ if (typeof canonicalVersion !== "string" || canonicalVersion.length === 0) {
       fail(`release tag is ${JSON.stringify(process.env.GITHUB_REF_NAME)}, expected ${expectedTag}.`);
     }
   }
+}
+
+if (typeof registryDescription !== "string" || registryDescriptionLength === 0) {
+  fail("server.json must contain a non-empty string description.");
+} else if (registryDescriptionLength > 100) {
+  fail(`server.json description is ${registryDescriptionLength} characters; MCP Registry allows at most 100.`);
+}
+
+if (packageJson.description !== registryDescription) {
+  fail("package.json and server.json descriptions must match.");
 }
 
 if (process.exitCode) {
