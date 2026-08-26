@@ -67,6 +67,19 @@ afterEach(() => {
 });
 
 describe("VaultGit", () => {
+  it("handles a Git process that closes stdin before Node finishes writing", async () => {
+    const { vault } = createRepository();
+    const service = new VaultGit(vault, { gitBinary: process.execPath });
+    const run = Reflect.get(service, "run") as (
+      args: string[],
+      options: { input: string; maxBytes: number },
+    ) => Promise<unknown>;
+
+    await expect(run.call(service, [], { input: "x".repeat(1024 * 1024), maxBytes: 4096 })).rejects.toThrow(
+      /Git command failed|Could not provide Git command input/,
+    );
+  });
+
   it("reports safe status, bounded diffs, and local history", async () => {
     const { vault } = createRepository();
     writeFileSync(path.join(vault, "Alpha.md"), "# Alpha\n\nChanged.\n");

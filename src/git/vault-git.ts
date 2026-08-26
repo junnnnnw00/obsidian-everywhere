@@ -708,6 +708,7 @@ export class VaultGit {
       let truncated = false;
       let timedOut = false;
       let settled = false;
+      let stdinError: NodeJS.ErrnoException | null = null;
 
       const collect = (chunks: Buffer[], chunk: Buffer, isStdout: boolean): void => {
         const used = isStdout ? stdoutBytes : stderrBytes;
@@ -722,6 +723,14 @@ export class VaultGit {
       };
       child.stdout.on("data", (chunk: Buffer) => collect(stdout, chunk, true));
       child.stderr.on("data", (chunk: Buffer) => collect(stderr, chunk, false));
+      const handleStdinError = (error: NodeJS.ErrnoException): void => {
+        // Fast-exiting Git commands may close their pipe before Node finishes
+        // ending stdin. Their exit status remains the authoritative result.
+        if (settled || error.code === "EPIPE") return;
+        stdinError ??= error;
+        child.kill();
+      };
+      child.stdin.on("error", handleStdinError);
 
       const timer = setTimeout(() => {
         if (settled) return;
@@ -753,6 +762,9 @@ export class VaultGit {
           reject(new GitError(`Git command exceeded the ${timeoutMs} ms safety limit.`));
         } else if (truncated && !options.allowTruncation) {
           reject(new GitError(`Git command exceeded the ${timeoutMs} ms or ${maxBytes} byte safety limit.`));
+        } else if (stdinError) {
+          const errorCode = stdinError.code ? ` (${stdinError.code})` : "";
+          reject(new GitError(`Could not provide Git command input${errorCode}.`));
         } else if (!allowedExitCodes.includes(result.exitCode)) {
           const detail = sanitizeError(
             result.stderr || result.stdout || `exit code ${result.exitCode}`,
@@ -764,7 +776,12 @@ export class VaultGit {
           resolve(result);
         }
       });
-      child.stdin.end(options.input ?? "");
+      try {
+        if (options.input === undefined) child.stdin.end();
+        else child.stdin.end(options.input);
+      } catch (error) {
+        handleStdinError(error as NodeJS.ErrnoException);
+      }
     });
   }
 

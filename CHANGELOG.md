@@ -34,6 +34,11 @@ project doesn't yet follow strict semver pre-1.0.
   prebuilt binary is available (including ARM64), while the final runtime image
   retains Git and SQLite support without a compiler toolchain.
 
+### Fixed
+
+- Fast-exiting Git subprocesses no longer surface a platform-dependent uncaught
+  `EPIPE` while Node.js closes their standard input.
+
 ### Security
 
 - Git writes require an exact configured repository root, explicit changed paths,
