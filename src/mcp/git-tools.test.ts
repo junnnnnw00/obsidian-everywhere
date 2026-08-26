@@ -4,11 +4,14 @@ import os from "node:os";
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { VaultEngine } from "../vault-engine.js";
 import { createServer, type CreateServerOptions } from "./server.js";
 
 const tempRoots: string[] = [];
+const isolatedGitConfigRoot = mkdtempSync(path.join(os.tmpdir(), "oe-mcp-git-config-test-"));
+const isolatedGitConfig = path.join(isolatedGitConfigRoot, "config");
+writeFileSync(isolatedGitConfig, "");
 
 function git(cwd: string, args: string[]): string {
   return execFileSync("git", args, {
@@ -18,7 +21,7 @@ function git(cwd: string, args: string[]): string {
       ...process.env,
       GIT_TERMINAL_PROMPT: "0",
       GIT_CONFIG_NOSYSTEM: "1",
-      GIT_CONFIG_GLOBAL: os.devNull,
+      GIT_CONFIG_GLOBAL: isolatedGitConfig,
       LC_ALL: "C",
     },
   }).trim();
@@ -55,6 +58,10 @@ function textOf(result: { content: Array<{ type: string; text?: string }> }): st
 
 afterEach(() => {
   for (const root of tempRoots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
+
+afterAll(() => {
+  rmSync(isolatedGitConfigRoot, { recursive: true, force: true });
 });
 
 describe("Vault Git MCP tools", () => {
