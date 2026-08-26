@@ -6,6 +6,47 @@ project doesn't yet follow strict semver pre-1.0.
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-08-26
+
+### Added
+
+- Opt-in Git vault workflows: `git_status`, bounded `git_diff`, and
+  `git_log`, plus preview/approval-gated `git_commit` and `git_push` at higher
+  `OBSIDIAN_EVERYWHERE_GIT_MODE` capability levels.
+- `OBSIDIAN_EVERYWHERE_GIT_REPO_PATH` selects one safe vault-relative real
+  repository directory and defaults to `.`; the full vault remains indexed
+  while Git tool paths are relative to the selected repository.
+- `doctor` now reports Git availability and configured-root repository
+  readiness without printing remote URLs.
+
+### Changed
+
+- Docker Compose keeps the bearer and OAuth services independently
+  configurable, including separate Git capability, repository-path, and push
+  mapping settings; selecting one no longer requires the other service's
+  secrets.
+- The macOS LaunchAgent installer now XML-escapes paths, tokens, sentinels, and
+  Git remote mappings, preserves a configurable port, rebuilds native modules
+  for the selected Node.js runtime, retries transient launchd registration
+  failures, and writes the generated credential-bearing plist with user-only
+  permissions.
+- Docker builds compile native dependencies in disposable stages when no
+  prebuilt binary is available (including ARM64), while the final runtime image
+  retains Git and SQLite support without a compiler toolchain.
+
+### Security
+
+- Git writes require an exact configured repository root, explicit changed paths,
+  a five-minute one-use approval, and an unchanged proposed Git tree. Hooks,
+  signing, clean filters/LFS, hidden or sensitive paths, suspected secrets,
+  arbitrary Git arguments, caller-provided force/tags/refspecs, and non-HTTPS
+  production remotes are blocked. Push additionally requires an exact
+  remote-to-HTTPS mapping and an existing upstream branch, scans bounded blobs,
+  merge results, and commit messages, and uses an exact-OID lease so a changed
+  remote ref fails closed. Vault/repository/`.git` filesystem identities are
+  rechecked before every Git subprocess, while repository-local HTTP/network
+  overrides that could weaken the pinned TLS destination are refused.
+
 ## [0.8.1] — 2026-08-17
 
 ### Changed
@@ -225,7 +266,8 @@ Initial release. A graph-native MCP server for Obsidian vaults.
 - The OAuth provider is single-user by design, not a general identity
   system (see DECISIONS.md D11).
 
-[Unreleased]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.6.0...v0.7.0

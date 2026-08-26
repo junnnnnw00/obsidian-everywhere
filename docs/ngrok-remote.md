@@ -33,6 +33,8 @@ password to the vault.
 - Keep the local HTTP port bound behind a firewall; expose only the ngrok HTTPS
   URL.
 - Start in read-only mode. Enable writes only after remote reads are verified.
+- Keep Git off for the first connection. Add `read`, `commit`, and `push`
+  capabilities separately only after the vault identity is verified.
 - Never paste the token into an issue, chat, shell history screenshot, or log.
 - Rotate the token if it is disclosed.
 - The server compares tokens in constant time and rate-limits failed bearer
@@ -51,6 +53,10 @@ transport described in [deploy.md](deploy.md).
   hostname.
 - Claude Code, Codex, or another Streamable HTTP MCP client on the external
   server.
+- Git on the vault machine only if you intend to enable the optional Git tools.
+  Select the vault root or one real directory inside it as the exact repository
+  root. Parent discovery, symlinked repository paths, linked worktrees, and
+  unsafe external or symlinked object/ref/log/core metadata are refused.
 
 Run these checks on the vault machine:
 
@@ -86,6 +92,8 @@ Start read-only for the first connection:
 export OBSIDIAN_VAULT_PATH="/absolute/path/to/vault"
 export OBSIDIAN_EVERYWHERE_TOKEN="<your-new-MCP-bearer-token>"
 export OBSIDIAN_EVERYWHERE_READONLY=true
+export OBSIDIAN_EVERYWHERE_GIT_MODE=off
+export OBSIDIAN_EVERYWHERE_GIT_REPO_PATH=.
 export OBSIDIAN_EVERYWHERE_MOUNT_GUARD=true
 export OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL=".obsidian/app.json"
 export PORT=3737
@@ -235,19 +243,130 @@ Successful writes are indexed synchronously before the MCP response returns.
 The next remote tool call sees the new state without waiting for the filesystem
 watcher.
 
+### Optional: enable Vault Git
+
+Git is a separate opt-in from ordinary note writes. Start by exposing only the
+three local read operations:
+
+```bash
+export OBSIDIAN_EVERYWHERE_GIT_MODE=read
+export OBSIDIAN_EVERYWHERE_GIT_REPO_PATH=.
+npx -y --package obsidian-everywhere obsidian-everywhere-http
+```
+
+After reconnecting the remote client, verify `git_status`, a bounded `git_diff`,
+and `git_log`. They never fetch or contact a remote. Their paths and branch must
+match the configured repository you checked locally. Git paths are relative to
+that repository root; ordinary note and file paths remain relative to the full
+vault root.
+
+The repository selector is operator-only startup configuration. For this real
+layout, the remote server can use all of the local vault as context while Git
+operates only on `DSLab`:
+
+```bash
+export OBSIDIAN_VAULT_PATH=/Volumes/SanDisk/jwhong
+export OBSIDIAN_EVERYWHERE_GIT_REPO_PATH=DSLab
+export OBSIDIAN_EVERYWHERE_GIT_MODE=read
+npx -y --package obsidian-everywhere obsidian-everywhere-http
+```
+
+Here, `git_diff` path `README.md` means
+`/Volumes/SanDisk/jwhong/DSLab/README.md`; `read_note` and other ordinary tools
+still interpret paths from `/Volumes/SanDisk/jwhong`. The selector defaults to
+`.` and refuses absolute paths, traversal, missing directories, files, and
+symlink path components.
+
+Commit requires both Git `commit` mode and ordinary writes to be enabled:
+
+```bash
+unset OBSIDIAN_EVERYWHERE_READONLY
+export OBSIDIAN_EVERYWHERE_GIT_MODE=commit
+npx -y --package obsidian-everywhere obsidian-everywhere-http
+```
+
+`git_commit` first receives `action: "preview"`, a single-line secret-scanned
+message, and an explicit list of safe changed files. Read the preview, then
+explicitly approve it. The approval binds the exact proposed tree. Execution
+accepts only the returned five-minute one-use UUID; a changed branch, `HEAD`,
+selected path/content, rename, or proposed tree invalidates it.
+
+Push is the widest capability. Configure the current branch's upstream locally,
+then pin its remote name to one exact credential-free HTTPS destination at
+process startup. Continuing the `DSLab` layout above:
+
+```bash
+export OBSIDIAN_EVERYWHERE_GIT_MODE=push
+export OBSIDIAN_EVERYWHERE_GIT_REPO_PATH=DSLab
+export OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES=origin=https://github.com/owner/repo.git
+npx -y --package obsidian-everywhere obsidian-everywhere-http
+```
+
+Those are the generic variables for a directly launched HTTP process or
+LaunchAgent. With the supplied Docker Compose file, put the bearer-specific
+`OBSIDIAN_EVERYWHERE_HTTP_GIT_MODE=push`,
+`OBSIDIAN_EVERYWHERE_HTTP_GIT_REPO_PATH=DSLab`, and
+`OBSIDIAN_EVERYWHERE_HTTP_GIT_ALLOWED_PUSH_REMOTES=origin=https://github.com/owner/repo.git`
+inputs in `.env` instead. The independent OAuth Compose inputs are
+`OBSIDIAN_EVERYWHERE_OAUTH_GIT_MODE`,
+`OBSIDIAN_EVERYWHERE_OAUTH_GIT_REPO_PATH`, and
+`OBSIDIAN_EVERYWHERE_OAUTH_GIT_ALLOWED_PUSH_REMOTES`; both service modes default
+to `off` and both repository paths default to `.`.
+
+Use repository path `.` in either form only when the whole vault is the
+repository.
+
+The upstream remote's sole resolved push URL must exactly match the pinned
+mapping. Configure a separate HTTPS push URL locally if its fetch URL uses a
+different transport. Production mappings reject credentials, queries, and
+fragments.
+
+`git_push` also requires preview and explicit approval. The preview does not
+contact the network and displays the pinned credential-free URL. Execution uses
+that literal URL and can push the approved current `HEAD` only to the already
+configured upstream branch. It cannot accept a URL, credential, branch, or
+refspec from the agent. An exact-OID lease makes the remote update a
+compare-and-swap: a deleted, advanced, or reset ref fails.
+
+The bearer token now authorizes Git publication as well as vault edits. Use a
+dedicated high-entropy token, keep ngrok TLS in front, enable Mount Guard, and
+choose one authoritative vault machine for remote Git writes. For OAuth, Git
+commit/push additionally require `OAUTH_ENABLE_WRITE_TOOLS=true`.
+
+Hooks, signing, filters and Git LFS, submodules, unconditional force, tags,
+pull/fetch, checkout, and arbitrary Git execution are unavailable. The built-in
+secret scan covers commit messages and merge results, stops above 100 outgoing
+commits or 200 changed blobs, and enforces 8 MiB per-blob / 32 MiB aggregate
+bounds. It is defense in depth, not a substitute for reading the preview.
+Complete the setup checklist in [Using a Git-backed vault](git-vault.md) before
+turning on commit or push.
+
 ## 7. Run both services automatically
 
 ### macOS
 
-From a source checkout:
+From a source checkout, install the locked dependencies first, then persist the
+same vault, token, mount, and Git settings that you verified in the foreground:
 
 ```bash
-OBSIDIAN_VAULT_PATH="/absolute/path/to/vault" \
+npm ci
+
+OBSIDIAN_VAULT_PATH="/Volumes/SanDisk/jwhong" \
 OBSIDIAN_EVERYWHERE_TOKEN="<your-MCP-bearer-token>" \
 OBSIDIAN_EVERYWHERE_MOUNT_GUARD=true \
 OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL=".obsidian/app.json" \
+OBSIDIAN_EVERYWHERE_GIT_MODE=read \
+OBSIDIAN_EVERYWHERE_GIT_REPO_PATH=DSLab \
 ./scripts/install-launchagent.sh
 ```
+
+This keeps full-vault context under `/Volumes/SanDisk/jwhong` and restores Git
+inspection of `DSLab` after login or a restart. Use repository path `.` only
+for a whole-vault repository. To persist `commit` or `push` later, re-run the
+installer with the new Git mode; `push` also requires
+`OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES`. Re-run it after changing the
+token, read-only state, repository path, push mapping, or port as well, because
+the installer copies those values into the LaunchAgent plist.
 
 Then install ngrok's native service using the config path printed by
 `ngrok config check`:
@@ -276,7 +395,16 @@ OBSIDIAN_VAULT_HOST_PATH=/absolute/path/to/vault
 OBSIDIAN_EVERYWHERE_TOKEN=<your-MCP-bearer-token>
 OBSIDIAN_EVERYWHERE_MOUNT_GUARD=true
 OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL=.obsidian/app.json
+OBSIDIAN_EVERYWHERE_HTTP_GIT_MODE=off
+OBSIDIAN_EVERYWHERE_HTTP_GIT_REPO_PATH=.
 ```
+
+If this Compose service should expose Git, use the bearer-specific
+`OBSIDIAN_EVERYWHERE_HTTP_GIT_MODE`,
+`OBSIDIAN_EVERYWHERE_HTTP_GIT_REPO_PATH`, and
+`OBSIDIAN_EVERYWHERE_HTTP_GIT_ALLOWED_PUSH_REMOTES` inputs described above; the
+generic names are process variables inside the container, not inputs consumed
+from the supplied Compose `.env`.
 
 Then:
 
@@ -311,6 +439,8 @@ Use `.obsidian/app.json` with forward slashes as the vault-relative sentinel.
   including indexed counts, write availability, sentinel, and last
   reconciliation.
 - `vault_overview`: includes a warning when indexed reads may be stale.
+- `git_status`, `git_diff`, and `git_log`: require the live guarded mount; unlike
+  indexed reads, they fail while the mount is unavailable or reconciling.
 
 ### Token rotation
 
@@ -326,7 +456,9 @@ Rotating the ngrok authtoken does not rotate the MCP bearer token.
 Remote write access makes normal vault backups more important. Use Obsidian
 Sync, Git, filesystem snapshots, or another system you already trust.
 Obsidian Everywhere's bulk operations add rollback snapshots, but they are not
-a replacement for a vault backup.
+a replacement for a vault backup. A local `git_commit` is history on the same
+machine, not an independent backup; `git_push` publishes outgoing history but
+does not synchronize or restore another working copy.
 
 ## Troubleshooting
 
@@ -339,6 +471,12 @@ a replacement for a vault backup.
 | ngrok URL works in a browser but MCP fails | Wrong `/mcp` URL or Authorization header | Use `https://domain/mcp`, not just the origin |
 | `list_notes` is correct locally but wrong remotely | ngrok points to another local port/process | Inspect the ngrok `upstream.url` and Traffic Inspector |
 | Writes say they are blocked | mount-guard is unavailable/reconciling | Do not bypass it; restore the mount and wait for reconciliation |
+| Git tools are absent | Git mode is `off`, or the process was not restarted | Set the narrowest `OBSIDIAN_EVERYWHERE_GIT_MODE` and reconnect |
+| `git_commit` / `git_push` is absent | The ordinary write gate is still off | For bearer HTTP unset `OBSIDIAN_EVERYWHERE_READONLY`; for OAuth explicitly set `OAUTH_ENABLE_WRITE_TOOLS=true` only after review |
+| Configured Git repository path is refused | The selector is absolute, traverses, missing, not a directory, or includes a symlink | Set `OBSIDIAN_EVERYWHERE_GIT_REPO_PATH` (or the service-specific Compose variable) to `.` or one real vault-relative directory and restart |
+| Git says the selected directory is not the repository root | Git was found only through a parent, or the selected directory uses a worktree/submodule layout | Select the normal repository's exact root inside the vault, or use Git locally |
+| Push destination is refused | Missing/invalid `name=https://host/path.git` mapping, no existing upstream, credential-bearing URL, behind/divergent branch, or exact-lease mismatch | Correct the operator mapping or reconcile with trusted local Git; there is no MCP bypass |
+| Approval expired or state changed | The one-use five-minute plan no longer matches | Re-run status/diff and preview; approve the new plan explicitly |
 | URL changed after restart | An ephemeral endpoint was used | Configure the assigned stable development domain or a reserved/custom domain |
 | Native SQLite module version error | Node version changed after install | Use a supported Node version and reinstall/rebuild dependencies |
 
@@ -354,6 +492,7 @@ Remote Vault Bridge provides remote access to one locally mounted vault. It
 does not:
 
 - synchronize vault files between machines;
+- pull, fetch, merge, or resolve Git conflicts;
 - provide multi-user authorization or per-folder permissions;
 - make concurrent edits conflict-free;
 - keep serving fresh file content while the vault is unmounted.

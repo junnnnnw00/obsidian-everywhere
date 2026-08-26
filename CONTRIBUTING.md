@@ -68,6 +68,10 @@ hand-formatted prose and shell examples in docs aren't reflowed.
   `InMemoryTransport.createLinkedPair()` from the SDK; `src/http/app.test.ts`
   and `src/oauth/http-app.test.ts` spin up a real listening HTTP server
   and hit it with real `fetch`/`http.request` calls.
+- **Git-tool tests create disposable repositories at runtime.** Never check a
+  `.git` fixture into the project. Use fixed argv arrays (no shell strings), a
+  temporary vault, and a temporary bare remote; preserve the user's real index,
+  working tree, credentials, hooks, and remotes.
 
 ## Code style
 

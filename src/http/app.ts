@@ -4,6 +4,7 @@ import { rateLimit } from "express-rate-limit";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { createServer } from "../mcp/server.js";
+import type { GitMode, GitPushTarget, VaultGitOptions } from "../git/vault-git.js";
 import type { VaultEngine } from "../vault-engine.js";
 
 export interface HttpAppOptions {
@@ -11,6 +12,14 @@ export interface HttpAppOptions {
   bearerToken: string;
   /** Register all write tools. Defaults to true. */
   enableWriteTools?: boolean;
+  /** Opt-in Vault Git capability level. */
+  gitMode?: GitMode;
+  /** Exact remote name/HTTPS URL pairs git_push may use. */
+  gitAllowedPushTargets?: GitPushTarget[];
+  /** Operator-selected vault-relative repository directory. */
+  gitRepositoryPath?: string;
+  /** Test-only Git service overrides. */
+  gitOptions?: Omit<VaultGitOptions, "allowedPushTargets" | "repositoryPath">;
 }
 
 function bearerAuth(bearerToken: string): RequestHandler {
@@ -63,7 +72,13 @@ export function mountMcpEndpoint(
   app: Express,
   engine: VaultEngine,
   authMiddleware: RequestHandler,
-  options: { enableWriteTools?: boolean } = {},
+  options: {
+    enableWriteTools?: boolean;
+    gitMode?: GitMode;
+    gitAllowedPushTargets?: GitPushTarget[];
+    gitRepositoryPath?: string;
+    gitOptions?: Omit<VaultGitOptions, "allowedPushTargets" | "repositoryPath">;
+  } = {},
 ): void {
   const transports = new Map<string, StreamableHTTPServerTransport>();
 
@@ -92,7 +107,13 @@ export function mountMcpEndpoint(
         if (transport?.sessionId) transports.delete(transport.sessionId);
       };
 
-      const mcpServer = createServer(engine, { enableWriteTools: options.enableWriteTools });
+      const mcpServer = createServer(engine, {
+        enableWriteTools: options.enableWriteTools,
+        gitMode: options.gitMode,
+        gitAllowedPushTargets: options.gitAllowedPushTargets,
+        gitRepositoryPath: options.gitRepositoryPath,
+        gitOptions: options.gitOptions,
+      });
       await mcpServer.connect(transport);
     }
 
@@ -109,7 +130,13 @@ export function createHttpApp(engine: VaultEngine, options: HttpAppOptions): Exp
   const app = express();
   app.use(express.json());
 
-  mountMcpEndpoint(app, engine, bearerAuth(options.bearerToken), { enableWriteTools: options.enableWriteTools });
+  mountMcpEndpoint(app, engine, bearerAuth(options.bearerToken), {
+    enableWriteTools: options.enableWriteTools,
+    gitMode: options.gitMode,
+    gitAllowedPushTargets: options.gitAllowedPushTargets,
+    gitRepositoryPath: options.gitRepositoryPath,
+    gitOptions: options.gitOptions,
+  });
 
   app.get("/healthz", async (_req, res) => {
     await engine.checkMountNow();

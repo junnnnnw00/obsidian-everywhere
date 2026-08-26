@@ -123,6 +123,7 @@ describe("MCP stdio-layer tool server", () => {
   it("advertises server-wide tool guidance during MCP initialization", () => {
     expect(client.getInstructions()).toContain("vault_overview");
     expect(client.getInstructions()).toContain("confirm that the user intends to modify the vault");
+    expect(client.getInstructions()).toContain("one-use approval ID");
   });
 
   it("rejects an unrecognized parameter instead of silently ignoring it (DECISIONS.md D22)", async () => {

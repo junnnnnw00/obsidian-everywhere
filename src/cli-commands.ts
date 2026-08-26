@@ -2,15 +2,19 @@ import {
   accessSync,
   constants,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
+import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
+import { normalizeGitRepositoryPath } from "./git/vault-git.js";
 import * as mutations from "./mcp/mutation-tools.js";
 import * as tools from "./mcp/tools.js";
 import { VERSION } from "./version.js";
@@ -94,8 +98,11 @@ function countMarkdownFiles(directory: string): number {
   return count;
 }
 
-export async function diagnoseVault(vaultInput: string): Promise<DoctorReport> {
+export async function diagnoseVault(vaultInput: string, gitRepositoryInput = "."): Promise<DoctorReport> {
   const vaultDir = path.resolve(vaultInput);
+  const gitRepositoryPath = normalizeGitRepositoryPath(gitRepositoryInput);
+  const gitRepositoryParts = gitRepositoryPath === "." ? [] : gitRepositoryPath.split("/");
+  const gitRepositoryDir = path.join(vaultDir, ...gitRepositoryParts);
   const checks: DoctorCheck[] = [];
   const major = Number(process.versions.node.split(".")[0]);
   checks.push({
@@ -129,6 +136,83 @@ export async function diagnoseVault(vaultInput: string): Promise<DoctorReport> {
     status: hasObsidian ? "pass" : "warn",
     detail: hasObsidian ? ".obsidian directory found" : "No .obsidian directory; this may be a Markdown folder",
   });
+
+  let gitRepositoryPathIssue: string | null = null;
+  let walkedGitPath = vaultDir;
+  for (const part of gitRepositoryParts) {
+    walkedGitPath = path.join(walkedGitPath, part);
+    if (!existsSync(walkedGitPath)) {
+      gitRepositoryPathIssue = `Configured Git path '${gitRepositoryPath}' does not exist`;
+      break;
+    }
+    const info = lstatSync(walkedGitPath);
+    if (info.isSymbolicLink() || !info.isDirectory()) {
+      gitRepositoryPathIssue = `Configured Git path '${gitRepositoryPath}' must contain only real directories`;
+      break;
+    }
+  }
+  const dotGit = path.join(gitRepositoryDir, ".git");
+  let gitAvailable = false;
+  try {
+    const version = execFileSync("git", ["--version"], {
+      encoding: "utf8",
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", LC_ALL: "C" },
+      timeout: 5000,
+    }).trim();
+    gitAvailable = true;
+    checks.push({ name: "Git executable", status: "pass", detail: version });
+  } catch {
+    checks.push({
+      name: "Git executable",
+      status: existsSync(dotGit) ? "warn" : "pass",
+      detail: "Git was not found; it is optional unless you enable the Vault Git tools",
+    });
+  }
+
+  if (gitRepositoryPathIssue) {
+    checks.push({ name: "Git repository", status: "warn", detail: gitRepositoryPathIssue });
+  } else if (!existsSync(dotGit)) {
+    checks.push({
+      name: "Git repository",
+      status: "pass",
+      detail: `No .git directory at configured path '${gitRepositoryPath}' (Vault Git remains unavailable)`,
+    });
+  } else if (!lstatSync(dotGit).isDirectory() || lstatSync(dotGit).isSymbolicLink()) {
+    checks.push({
+      name: "Git repository",
+      status: "warn",
+      detail: "Linked worktrees, submodule roots, symlinked metadata, and external .git files are not supported",
+    });
+  } else if (gitAvailable) {
+    try {
+      const top = execFileSync("git", ["-C", gitRepositoryDir, "rev-parse", "--show-toplevel"], {
+        encoding: "utf8",
+        env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" },
+        timeout: 5000,
+      }).trim();
+      const exactRoot = realpathSync.native(top) === realpathSync.native(gitRepositoryDir);
+      const remotes = execFileSync("git", ["-C", gitRepositoryDir, "remote"], {
+        encoding: "utf8",
+        env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" },
+        timeout: 5000,
+      })
+        .split(/\r?\n/)
+        .filter(Boolean).length;
+      checks.push({
+        name: "Git repository",
+        status: exactRoot ? "pass" : "warn",
+        detail: exactRoot
+          ? `Configured path '${gitRepositoryPath}' is an exact Git root (${remotes} configured remote(s); URLs hidden)`
+          : "Git root does not exactly match the configured repository path; Vault Git will refuse it",
+      });
+    } catch {
+      checks.push({
+        name: "Git repository",
+        status: "warn",
+        detail: ".git exists, but repository identity could not be verified; Vault Git will refuse it",
+      });
+    }
+  }
 
   let noteCount: number | undefined;
   try {

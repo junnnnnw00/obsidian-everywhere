@@ -5,7 +5,12 @@ import { diagnoseVault, formatDoctorReport, generateInitOutput, runDemo, type Cl
 import { connectStdio, createServer } from "./mcp/server.js";
 import { VERSION } from "./version.js";
 import { VaultEngine } from "./vault-engine.js";
-import { mountGuardConfigFromEnv, semanticSearchEnabledFromEnv, writeToolsEnabledByDefault } from "./env.js";
+import {
+  gitFeatureConfigFromEnv,
+  mountGuardConfigFromEnv,
+  semanticSearchEnabledFromEnv,
+  writeToolsEnabledByDefault,
+} from "./env.js";
 
 function usage(): string {
   return `Obsidian Everywhere v${VERSION}
@@ -23,7 +28,8 @@ Doctor options:
   --share                                       Redact the vault path for bug reports
 
 Environment:
-  OBSIDIAN_VAULT_PATH may replace <vault-path>.`;
+  OBSIDIAN_VAULT_PATH may replace <vault-path>.
+  OBSIDIAN_EVERYWHERE_GIT_MODE=off|read|commit|push enables guarded Vault Git tools.`;
 }
 
 import { resolveDbPath } from "./vault/db-path.js";
@@ -67,13 +73,15 @@ async function main(): Promise<void> {
   if (command === "doctor") {
     const vaultArg = args.slice(1).find((arg) => arg !== "--share");
     const { vaultDir } = resolveConfig(vaultArg);
-    const report = await diagnoseVault(vaultDir);
+    const git = gitFeatureConfigFromEnv();
+    const report = await diagnoseVault(vaultDir, git.repositoryPath);
     process.stdout.write(`${formatDoctorReport(report, { redactPaths: args.includes("--share") })}\n`);
     if (!report.ok) process.exitCode = 1;
     return;
   }
 
   const { vaultDir, dbPath } = resolveConfig(command);
+  const git = gitFeatureConfigFromEnv();
   mkdirSync(path.dirname(dbPath), { recursive: true });
 
   const engine = new VaultEngine({
@@ -85,7 +93,12 @@ async function main(): Promise<void> {
   await engine.init();
   engine.watch();
 
-  const server = createServer(engine, { enableWriteTools: writeToolsEnabledByDefault() });
+  const server = createServer(engine, {
+    enableWriteTools: writeToolsEnabledByDefault(),
+    gitMode: git.mode,
+    gitRepositoryPath: git.repositoryPath,
+    gitAllowedPushTargets: git.allowedPushTargets,
+  });
   await connectStdio(server);
 
   const shutdown = async (): Promise<void> => {

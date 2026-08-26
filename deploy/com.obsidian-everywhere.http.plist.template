@@ -16,12 +16,20 @@
   <dict>
     <key>OBSIDIAN_EVERYWHERE_TOKEN</key>
     <string>__TOKEN__</string>
+    <key>OBSIDIAN_EVERYWHERE_READONLY</key>
+    <string>__READONLY__</string>
     <key>PORT</key>
-    <string>3737</string>
+    <string>__PORT__</string>
     <key>OBSIDIAN_EVERYWHERE_MOUNT_GUARD</key>
     <string>__MOUNT_GUARD__</string>
     <key>OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL</key>
     <string>__MOUNT_SENTINEL__</string>
+    <key>OBSIDIAN_EVERYWHERE_GIT_MODE</key>
+    <string>__GIT_MODE__</string>
+    <key>OBSIDIAN_EVERYWHERE_GIT_REPO_PATH</key>
+    <string>__GIT_REPO_PATH__</string>
+    <key>OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES</key>
+    <string>__GIT_PUSH_REMOTES__</string>
     <key>PATH</key>
     <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
   </dict>

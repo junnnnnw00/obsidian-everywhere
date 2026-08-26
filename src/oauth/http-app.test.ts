@@ -72,7 +72,13 @@ describe("OAuth 2.1 flow (PKCE + Dynamic Client Registration) — real HTTP, loc
     await engine.init();
     const port = await getFreePort();
     issuerUrl = `http://127.0.0.1:${port}`;
-    const app = createOAuthHttpApp(engine, { issuerUrl: new URL(issuerUrl), loginSecret: LOGIN_SECRET });
+    const app = createOAuthHttpApp(engine, {
+      issuerUrl: new URL(issuerUrl),
+      loginSecret: LOGIN_SECRET,
+      enableWriteTools: false,
+      gitMode: "push",
+      gitAllowedPushTargets: [{ remote: "origin", url: "https://example.invalid/vault.git" }],
+    });
     httpServer = app.listen(port);
     await new Promise<void>((resolve) => httpServer.once("listening", resolve));
   });
@@ -225,6 +231,23 @@ describe("OAuth 2.1 flow (PKCE + Dynamic Client Registration) — real HTTP, loc
       body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
     });
 
+    const toolsRes = await rawRequest({
+      method: "POST",
+      url: `${issuerUrl}/mcp`,
+      headers: {
+        Authorization: `Bearer ${tokens.access_token}`,
+        "Mcp-Session-Id": sessionId,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }),
+    });
+    expect(toolsRes.body).toContain('"name":"git_status"');
+    expect(toolsRes.body).toContain('"name":"git_diff"');
+    expect(toolsRes.body).toContain('"name":"git_log"');
+    expect(toolsRes.body).not.toContain('"name":"git_commit"');
+    expect(toolsRes.body).not.toContain('"name":"git_push"');
+
     const callRes = await rawRequest({
       method: "POST",
       url: `${issuerUrl}/mcp`,
@@ -236,7 +259,7 @@ describe("OAuth 2.1 flow (PKCE + Dynamic Client Registration) — real HTTP, loc
       },
       body: JSON.stringify({
         jsonrpc: "2.0",
-        id: 2,
+        id: 3,
         method: "tools/call",
         params: { name: "vault_overview", arguments: {} },
       }),

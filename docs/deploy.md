@@ -8,7 +8,9 @@ simultaneously. Their default SQLite files are transport-specific
 (`index-stdio.db`, `index-http.db`, and `index-oauth.db`). If you override
 `OBSIDIAN_EVERYWHERE_DB`, keep the path unique per process. The write tools modify
 Markdown files, so avoid concurrent writes to the same note and let your
-vault sync system resolve cross-host conflicts. See "Vault sync" below.
+vault sync system resolve cross-host conflicts. The opt-in Git tools can
+create and publish outbound checkpoints, but they do not pull or synchronize
+hosts. See "Vault Git" and "Vault sync" below.
 
 | Client | Transport | Auth | Where it runs |
 |---|---|---|---|
@@ -27,9 +29,10 @@ vault sync system resolve cross-host conflicts. See "Vault sync" below.
   optionally the OAuth HTTP service, if you want the lab server rather than
   the laptop to serve claude.ai).
 
-Both hosts point at the *same* vault, kept in sync by your own existing git
-pipeline (private GitHub repo) — this project does not do vault
-synchronization. See "Vault sync" below for what it does handle.
+Both hosts point at copies of the same vault, kept in sync by your existing
+sync or Git pipeline. Obsidian Everywhere's Git tools can commit and push
+from one chosen vault machine; they never pull changes onto the other host.
+See "Vault sync" below for the boundary.
 
 ---
 
@@ -51,26 +54,45 @@ See the README for manual `config.toml` and Claude Desktop JSON examples.
 
 ## 2. Remote clients over Tailscale (static bearer token)
 
-Install as a LaunchAgent on the MacBook (Host 1):
+Install as a LaunchAgent on the MacBook (Host 1). From a source checkout,
+install the locked dependencies first:
 
 ```bash
-OBSIDIAN_VAULT_PATH=/path/to/your/vault \
-OBSIDIAN_EVERYWHERE_TOKEN=$(openssl rand -hex 32) \
+npm ci
+```
+
+Generate the bearer token once, save the output in a password manager, and use
+that same value for the LaunchAgent and remote client:
+
+```bash
+openssl rand -hex 32
+
+OBSIDIAN_VAULT_PATH=/Volumes/SanDisk/jwhong \
+OBSIDIAN_EVERYWHERE_TOKEN="<saved token>" \
+OBSIDIAN_EVERYWHERE_MOUNT_GUARD=true \
+OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL=.obsidian/app.json \
+OBSIDIAN_EVERYWHERE_GIT_MODE=read \
+OBSIDIAN_EVERYWHERE_GIT_REPO_PATH=DSLab \
 ./scripts/install-launchagent.sh
 ```
 
 This starts `dist/http-cli.js` on port 3737, `RunAtLoad`+`KeepAlive`, logging
-to `logs/http.{out,err}.log`. Verify:
+to `logs/http.{out,err}.log`. It indexes the whole `jwhong` vault and persists
+read-only Git inspection for its `DSLab` repository. Use `.` instead of `DSLab`
+only for a whole-vault repository. Re-run the installer whenever you change the
+Git mode, repository path, push mappings, read-only state, token, or port; those
+values are copied into the LaunchAgent plist. Verify:
 
 ```bash
 curl http://127.0.0.1:3737/healthz
 ```
 
 On the *other* machine (e.g. the lab server), point the MCP client at it over
-your Tailscale network. Codex and ChatGPT Desktop share this registration:
+your Tailscale network. Use the saved token from the installation step. Codex
+and ChatGPT Desktop share this registration:
 
 ```bash
-export OBSIDIAN_EVERYWHERE_CLIENT_TOKEN="<the token>"
+export OBSIDIAN_EVERYWHERE_CLIENT_TOKEN="<saved token>"
 codex mcp add obsidian-everywhere-remote \
   --url http://<macbook-tailscale-name>:3737/mcp \
   --bearer-token-env-var OBSIDIAN_EVERYWHERE_CLIENT_TOKEN
@@ -82,7 +104,7 @@ including when ChatGPT Desktop launches. For Claude Code:
 ```bash
 claude mcp add --transport http obsidian-everywhere-remote \
   http://<macbook-tailscale-name>:3737/mcp \
-  --header "Authorization: Bearer <the token>"
+  --header "Authorization: Bearer <saved token>"
 ```
 
 Or run the same service inside the lab-server Docker container (Host 2, the
@@ -161,11 +183,122 @@ account, so there's no way to script it.
 
 ---
 
+## Vault Git on any transport
+
+Git is completely off by default. The process needs a Git executable on its
+`PATH`. `OBSIDIAN_EVERYWHERE_GIT_REPO_PATH` selects one vault-relative real
+directory, defaults to `.`, and that directory must be the exact root of a
+normal repository with a real local `.git` directory. Parent discovery,
+symlinked repository paths, linked worktrees, and unsafe external or symlinked
+object/ref/log/core metadata are refused. The full vault remains indexed; only
+Git tool paths switch to the selected-repository-relative namespace. Start with
+local-only inspection for a direct process or LaunchAgent:
+
+```bash
+export OBSIDIAN_EVERYWHERE_GIT_MODE=read
+export OBSIDIAN_EVERYWHERE_GIT_REPO_PATH=.
+```
+
+The supplied Compose file instead reads service-specific settings from its
+host-side `.env`, then maps them to the generic names inside each container:
+
+| Compose service | Mode input | Repository-path input | Push-mapping input |
+|---|---|---|---|
+| Bearer HTTP (`obsidian-everywhere`) | `OBSIDIAN_EVERYWHERE_HTTP_GIT_MODE` | `OBSIDIAN_EVERYWHERE_HTTP_GIT_REPO_PATH` | `OBSIDIAN_EVERYWHERE_HTTP_GIT_ALLOWED_PUSH_REMOTES` |
+| OAuth (`obsidian-everywhere-oauth`) | `OBSIDIAN_EVERYWHERE_OAUTH_GIT_MODE` | `OBSIDIAN_EVERYWHERE_OAUTH_GIT_REPO_PATH` | `OBSIDIAN_EVERYWHERE_OAUTH_GIT_ALLOWED_PUSH_REMOTES` |
+
+Each Compose service defaults independently to `off`, with repository path `.`.
+For example, enable only bearer-side read inspection with
+`OBSIDIAN_EVERYWHERE_HTTP_GIT_MODE=read`; setting that value does not expose Git
+through OAuth. Direct CLI/HTTP/OAuth processes and the LaunchAgent continue to
+use `OBSIDIAN_EVERYWHERE_GIT_MODE`,
+`OBSIDIAN_EVERYWHERE_GIT_REPO_PATH`, and
+`OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES`.
+
+For a full vault at `/Volumes/SanDisk/jwhong` whose Git repository is the
+`DSLab` folder, use:
+
+```dotenv
+OBSIDIAN_VAULT_HOST_PATH=/Volumes/SanDisk/jwhong
+OBSIDIAN_EVERYWHERE_HTTP_GIT_MODE=read
+OBSIDIAN_EVERYWHERE_HTTP_GIT_REPO_PATH=DSLab
+```
+
+The bearer service continues to index `/vault` in full, while its Git tools use
+`/vault/DSLab`. Configure the OAuth service independently with
+`OBSIDIAN_EVERYWHERE_OAUTH_GIT_REPO_PATH` if it should expose Git too.
+
+For Compose push, use the corresponding service-specific mode and mapping.
+Continuing the `DSLab` example:
+
+```dotenv
+OBSIDIAN_EVERYWHERE_HTTP_GIT_MODE=push
+OBSIDIAN_EVERYWHERE_HTTP_GIT_REPO_PATH=DSLab
+OBSIDIAN_EVERYWHERE_HTTP_GIT_ALLOWED_PUSH_REMOTES=origin=https://github.com/owner/repo.git
+```
+
+The capability levels are cumulative:
+
+| Mode | Git tools |
+|---|---|
+| `off` | none |
+| `read` | `git_status`, `git_diff`, `git_log` |
+| `commit` | read tools plus `git_commit`, if normal writes are enabled |
+| `push` | all five, if normal writes are enabled and exact HTTPS destinations are mapped |
+
+For a direct process, push mode fails fast without an exact operator-pinned
+destination mapping. The same repository selection must be retained:
+
+```bash
+export OBSIDIAN_EVERYWHERE_GIT_MODE=push
+export OBSIDIAN_EVERYWHERE_GIT_REPO_PATH=DSLab
+export OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES=origin=https://github.com/owner/repo.git
+```
+
+Use repository path `.` in either form only when the whole vault is the
+repository.
+
+The current branch must already track the intended remote branch. Its upstream
+remote name selects the exact `name=https://host/path.git` mapping, and that
+remote's sole resolved push URL must match it. The URL must authenticate
+non-interactively on the vault machine. Production mappings reject credentials,
+queries, and fragments. The preview displays the exact credential-free
+destination. The agent cannot provide a URL, credential, branch, or refspec.
+
+The transport's ordinary write gate remains authoritative:
+
+- stdio and bearer HTTP: `OBSIDIAN_EVERYWHERE_READONLY=true` removes commit and
+  push even when the Git mode is higher;
+- OAuth: commit and push additionally require
+  `OAUTH_ENABLE_WRITE_TOOLS=true`;
+- Git status, diff, and log remain available at any mode above `off`.
+
+For a remote service, add the applicable direct-process or Compose Git variables
+to the service configuration and restart the process. Confirm the resulting MCP
+tool list before using it. A container must include the Git executable and a
+deliberately configured non-interactive HTTPS credential path; installing Git
+only in the host shell does not make it available inside the container.
+
+Commit and push each require a preview followed by a five-minute, one-use,
+state-bound approval UUID. Commit messages are single-line and secret-scanned;
+approval binds the exact proposed tree. Push preview never contacts the network.
+Execution uses the pinned URL literally and an exact-OID lease as a
+compare-and-swap guard; unconditional force, hooks, signing, filters/LFS,
+submodules, tags, hidden/sensitive paths, and free-form Git input are blocked.
+Outgoing review stops above 100 commits or 200 changed blobs, scans messages and
+merge results, and enforces 8 MiB per-blob / 32 MiB aggregate bounds. See the
+complete [Git-backed vault tutorial](git-vault.md) before enabling either write
+level.
+
+---
+
 ## Vault sync
 
-This server does **not** sync your vault. Keeping the vault's files
-identical across hosts is your existing git pipeline's job (`git pull` on
-whichever host, on whatever schedule/hook you already use).
+This server does **not** synchronize vaults. `git_commit` records selected local
+changes and `git_push` publishes the approved current `HEAD`, but there is no
+MCP pull/fetch/merge operation. Keeping files identical across hosts remains the
+job of your existing Obsidian Sync, filesystem, or locally managed Git pipeline.
+Incoming Git reconciliation and conflicts must be handled locally.
 
 What this server *does* guarantee: once new/changed files land on disk
 (from a `git pull`, an editor save, anything), the filesystem watcher
@@ -200,8 +333,8 @@ unmountable path doesn't hang startup). Tune it with:
   still empty after the timeout, startup fails before the existing index can
   be replaced by an empty scan, allowing the service manager to retry. While
   running, the same guard preserves the index during an unmount and performs
-  a full reconciliation after the mount returns. It also blocks write tools
-  while state is `unavailable` or `reconciling`.
+  a full reconciliation after the mount returns. It blocks ordinary write
+  tools and every live Git tool while state is `unavailable` or `reconciling`.
 - `OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL=.obsidian/app.json` — optional
   vault-relative path that must exist for the intended mount to be considered
   available. Strongly recommended.

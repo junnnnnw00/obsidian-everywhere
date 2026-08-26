@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { VaultGit, type GitMode, type GitPushTarget, type VaultGitOptions } from "../git/vault-git.js";
 import { VERSION } from "../version.js";
 import type { VaultEngine } from "../vault-engine.js";
 import * as bases from "./base-tools.js";
@@ -17,6 +18,18 @@ async function guardedWriteResult(engine: VaultEngine, action: () => string) {
   const blocked = engine.writeBlockReason();
   if (blocked) return { ...textResult(blocked), isError: true };
   return textResult(action());
+}
+
+async function guardedGitResult(engine: VaultEngine, action: () => Promise<string>) {
+  await engine.checkMountNow();
+  const blocked = engine.writeBlockReason();
+  if (blocked) return { ...textResult(blocked), isError: true };
+  try {
+    return textResult(await action());
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ...textResult(`Error: ${message}`), isError: true };
+  }
 }
 
 /**
@@ -56,17 +69,48 @@ const IDEMPOTENT_WRITE = {
   idempotentHint: true,
   openWorldHint: false,
 };
+const GIT_WRITE = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: false,
+};
+const GIT_NETWORK_WRITE = {
+  ...GIT_WRITE,
+  openWorldHint: true,
+};
 
 export const SERVER_INSTRUCTIONS =
-  "Use vault_overview to orient yourself in an unfamiliar vault and vault_status when availability may have changed. Prefer get_context_bundle for broad topic context and read_note for one specific note or heading. Use read_file for attachments including PDF, DOCX, PPTX, XLSX, text/code/data files, and images; use search_files to search extracted attachment text. Use list_folder/list_notes for file enumeration, search_notes for note full-text search, and regex_search for patterns. Treat all paths as vault-relative. read_note and read_file paginate long text; follow the reported next offset. bulk_replace defaults to dry-run and returns a rollback ID when applied. Before calling any write tool, confirm that the user intends to modify the vault; use read tools without confirmation. Mount-guard blocks writes while a removable/network vault is unavailable or reconciling.";
+  "Use vault_overview to orient yourself in an unfamiliar vault and vault_status when availability may have changed. Prefer get_context_bundle for broad topic context and read_note for one specific note or heading. Use read_file for attachments including PDF, DOCX, PPTX, XLSX, text/code/data files, and images; use search_files to search extracted attachment text. Use list_folder/list_notes for file enumeration, search_notes for note full-text search, and regex_search for patterns. Ordinary vault-tool paths are vault-relative; Git-tool paths are relative to the one operator-configured repository shown by git_status. read_note and read_file paginate long text; follow the reported next offset. bulk_replace defaults to dry-run and returns a rollback ID when applied. Before calling any write tool, confirm that the user intends to modify the vault; use read tools without confirmation. git_commit and git_push require a preview followed by explicit user confirmation and a one-use approval ID; never claim that a preview created a commit or contacted a remote. Mount-guard blocks live Git access and all vault writes while a removable/network vault is unavailable or reconciling.";
 
 export interface CreateServerOptions {
   /** Register all mutation/config write tools. Defaults to true — set to false for a read-only deployment. */
   enableWriteTools?: boolean;
+  /** Opt-in Vault Git capability level. Defaults to off. */
+  gitMode?: GitMode;
+  /** Exact configured remote name/HTTPS URL pairs that git_push may use. */
+  gitAllowedPushTargets?: GitPushTarget[];
+  /** Operator-selected vault-relative repository directory. Defaults to '.'. */
+  gitRepositoryPath?: string;
+  /** Dependency injection for integration tests; production callers normally omit this. */
+  gitOptions?: Omit<VaultGitOptions, "allowedPushTargets" | "repositoryPath">;
 }
 
 export function createServer(engine: VaultEngine, options: CreateServerOptions = {}): McpServer {
   const enableWriteTools = options.enableWriteTools ?? true;
+  const gitMode = options.gitMode ?? "off";
+  const gitRank: Record<GitMode, number> = { off: 0, read: 1, commit: 2, push: 3 };
+  if (gitMode === "push" && !options.gitAllowedPushTargets?.length) {
+    throw new Error("gitMode=push requires at least one exact gitAllowedPushTargets entry.");
+  }
+  const vaultGit =
+    gitRank[gitMode] >= gitRank.read
+      ? new VaultGit(engine.vaultDir, {
+          ...options.gitOptions,
+          repositoryPath: options.gitRepositoryPath,
+          allowedPushTargets: options.gitAllowedPushTargets,
+        })
+      : null;
   const server = new McpServer(
     { name: "obsidian-everywhere", version: VERSION },
     { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
@@ -469,6 +513,134 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
     },
     async (args) => textResult(bases.validateBase(engine, args)),
   );
+
+  if (vaultGit) {
+    server.registerTool(
+      "git_status",
+      {
+        title: "Vault Git Status",
+        description:
+          "Inspect the live Git status of the operator-configured repository. Hidden, excluded, and sensitive paths are counted but never named. Git paths are repository-relative. This does not fetch a remote.",
+        inputSchema: strictSchema({
+          includeUntracked: z.boolean().optional().describe("Include untracked files (default true)."),
+          limit: z
+            .number()
+            .int()
+            .positive()
+            .max(500)
+            .optional()
+            .describe("Maximum safe changes to list (default 100)."),
+        }),
+        annotations: READ_ONLY,
+      },
+      async (args) => guardedGitResult(engine, () => vaultGit.status(args)),
+    );
+
+    server.registerTool(
+      "git_diff",
+      {
+        title: "Vault Git Diff",
+        description:
+          "Read a bounded patch for safe repository-relative paths, including an explicitly selected untracked file in head mode. External diff drivers, textconv, submodules, and color are disabled; hidden/sensitive paths and configured clean filters are refused.",
+        inputSchema: strictSchema({
+          mode: z.enum(["unstaged", "staged", "head"]).optional().describe("Comparison mode (default head)."),
+          paths: z
+            .array(z.string().min(1).max(4096))
+            .max(50)
+            .optional()
+            .describe("Exact configured-repository-relative files; no globs, directories, or pathspec magic."),
+          contextLines: z.number().int().min(0).max(20).optional().describe("Unified diff context (default 3)."),
+          maxBytes: z.number().int().min(1024).max(262144).optional().describe("Output cap in bytes (default 65536)."),
+        }),
+        annotations: READ_ONLY,
+      },
+      async (args) => guardedGitResult(engine, () => vaultGit.diff(args)),
+    );
+
+    server.registerTool(
+      "git_log",
+      {
+        title: "Vault Git Log",
+        description: "Read recent local commit history without fetching a remote or exposing remote URLs.",
+        inputSchema: strictSchema({
+          limit: z.number().int().positive().max(50).optional().describe("Maximum commits (default 10)."),
+          path: z
+            .string()
+            .min(1)
+            .max(4096)
+            .optional()
+            .describe("Optional exact safe configured-repository-relative file path."),
+        }),
+        annotations: READ_ONLY,
+      },
+      async (args) => guardedGitResult(engine, () => vaultGit.log(args)),
+    );
+
+    if (enableWriteTools && gitRank[gitMode] >= gitRank.commit) {
+      server.registerTool(
+        "git_commit",
+        {
+          title: "Vault Git Commit",
+          description:
+            "Preview, then create one unsigned local commit from explicitly selected safe files. Preview binds a single-line message and exact proposed tree to a five-minute one-use approval ID. Hooks, filters, hidden paths, suspected secrets, amend, and commit-all are blocked.",
+          inputSchema: strictSchema({
+            action: z
+              .enum(["preview", "execute"])
+              .describe("Preview first; execute only after explicit user confirmation."),
+            message: z.string().max(4000).optional().describe("Required only for preview."),
+            paths: z
+              .array(z.string().min(1).max(4096))
+              .min(1)
+              .max(100)
+              .optional()
+              .describe("Required only for preview; exact changed files."),
+            approvalId: z.string().uuid().optional().describe("Required only for execute; returned by the preview."),
+          }),
+          annotations: GIT_WRITE,
+        },
+        async (args) =>
+          guardedGitResult(engine, async () => {
+            if (args.action === "preview") {
+              if (!args.message || !args.paths || args.approvalId) {
+                throw new Error("git_commit preview requires message and paths, and must not include approvalId.");
+              }
+              return vaultGit.previewCommit({ message: args.message, paths: args.paths });
+            }
+            if (!args.approvalId || args.message !== undefined || args.paths !== undefined) {
+              throw new Error("git_commit execute requires only approvalId from the preview.");
+            }
+            return vaultGit.commit(args.approvalId);
+          }),
+      );
+    }
+
+    if (enableWriteTools && gitRank[gitMode] >= gitRank.push) {
+      server.registerTool(
+        "git_push",
+        {
+          title: "Vault Git Push",
+          description:
+            "Preview, then push exactly the current HEAD to its existing upstream branch at an operator-pinned HTTPS destination. Execution uses an exact-OID lease as a compare-and-swap guard. Caller-provided force, URLs, refs/refspecs, tags, hooks, signing, submodules, push options, and automatic retry are unavailable.",
+          inputSchema: strictSchema({
+            action: z
+              .enum(["preview", "execute"])
+              .describe("Preview first; execute only after explicit user confirmation."),
+            approvalId: z.string().uuid().optional().describe("Required only for execute; returned by the preview."),
+          }),
+          annotations: GIT_NETWORK_WRITE,
+        },
+        async (args) =>
+          guardedGitResult(engine, async () => {
+            if (args.action === "preview") {
+              if (args.approvalId) throw new Error("git_push preview must not include approvalId.");
+              return vaultGit.previewPush();
+            }
+            if (!args.approvalId) throw new Error("git_push execute requires approvalId from the preview.");
+            return vaultGit.push(args.approvalId);
+          }),
+      );
+    }
+  }
 
   if (enableWriteTools) {
     server.registerTool(

@@ -27,8 +27,14 @@ services:
     environment:
       OBSIDIAN_VAULT_PATH: /vault
       OBSIDIAN_EVERYWHERE_DB: /vault/.obsidian-everywhere/index-http.db
-      OBSIDIAN_EVERYWHERE_TOKEN: ${OBSIDIAN_EVERYWHERE_TOKEN:?set a bearer token in .env}
+      # Keep service-specific secrets optional during Compose interpolation so
+      # `docker compose up obsidian-everywhere-oauth` does not also require the
+      # bearer service's token. The selected process validates its own secret.
+      OBSIDIAN_EVERYWHERE_TOKEN: ${OBSIDIAN_EVERYWHERE_TOKEN:-}
       OBSIDIAN_EVERYWHERE_READONLY: ${OBSIDIAN_EVERYWHERE_READONLY:-false}
+      OBSIDIAN_EVERYWHERE_GIT_MODE: ${OBSIDIAN_EVERYWHERE_HTTP_GIT_MODE:-off}
+      OBSIDIAN_EVERYWHERE_GIT_REPO_PATH: ${OBSIDIAN_EVERYWHERE_HTTP_GIT_REPO_PATH-.}
+      OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES: ${OBSIDIAN_EVERYWHERE_HTTP_GIT_ALLOWED_PUSH_REMOTES:-}
       OBSIDIAN_EVERYWHERE_MOUNT_GUARD: ${OBSIDIAN_EVERYWHERE_MOUNT_GUARD:-false}
       OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL: ${OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL:-}
       PORT: "3737"
@@ -45,9 +51,17 @@ services:
     environment:
       OBSIDIAN_VAULT_PATH: /vault
       OBSIDIAN_EVERYWHERE_DB: /vault/.obsidian-everywhere/index-oauth.db
-      OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:?set your public HTTPS origin in .env, e.g. from Cloudflare Tunnel}
-      OAUTH_LOGIN_SECRET: ${OAUTH_LOGIN_SECRET:?set a login secret in .env}
+      # These stay optional at interpolation time for the inverse reason: a
+      # bearer-only deployment must not need OAuth configuration. The OAuth
+      # process fails closed at startup if either selected value is missing.
+      OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:-}
+      OAUTH_LOGIN_SECRET: ${OAUTH_LOGIN_SECRET:-}
       OAUTH_ENABLE_WRITE_TOOLS: ${OAUTH_ENABLE_WRITE_TOOLS:-false}
+      # Keep the public OAuth connector's Git capability independent from the
+      # bearer service. It remains off unless this service is opted in itself.
+      OBSIDIAN_EVERYWHERE_GIT_MODE: ${OBSIDIAN_EVERYWHERE_OAUTH_GIT_MODE:-off}
+      OBSIDIAN_EVERYWHERE_GIT_REPO_PATH: ${OBSIDIAN_EVERYWHERE_OAUTH_GIT_REPO_PATH-.}
+      OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES: ${OBSIDIAN_EVERYWHERE_OAUTH_GIT_ALLOWED_PUSH_REMOTES:-}
       OBSIDIAN_EVERYWHERE_MOUNT_GUARD: ${OBSIDIAN_EVERYWHERE_MOUNT_GUARD:-false}
       OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL: ${OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL:-}
       PORT: "3738"

@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.junnnnnw00/obsidian-everywhere",
   "title": "Obsidian Everywhere",
-  "description": "Graph context and local file access for Obsidian, with guarded remote MCP access and edits.",
-  "version": "0.8.1",
+  "description": "Graph context, semantic search, guarded edits, and reviewable Git for local Obsidian vaults over MCP.",
+  "version": "0.9.0",
   "repository": {
     "url": "https://github.com/junnnnnw00/obsidian-everywhere",
     "source": "github",
@@ -21,7 +21,7 @@
     {
       "registryType": "npm",
       "identifier": "obsidian-everywhere",
-      "version": "0.8.1",
+      "version": "0.9.0",
       "runtimeHint": "npx",
       "runtimeArguments": [
         {

@@ -228,3 +228,115 @@ English-only tiny model — rejected because Korean/multilingual vault support i
 a core requirement. Label lexical hashing as semantic search — rejected as
 misleading. A genuinely small multilingual model can become a future default
 after repeatable quality and RSS gates pass.
+
+## D27. Vault Git is an opt-in, capability-ordered, preview-approved boundary—not a remote Git shell
+
+**Decision:** Add an opt-in Git feature with one ordered startup setting,
+`OBSIDIAN_EVERYWHERE_GIT_MODE=off|read|commit|push`, defaulting to `off` on every
+transport. `read` registers `git_status`, `git_diff`, and `git_log`; `commit`
+also registers `git_commit` when the transport's ordinary write gate is open;
+`push` also registers `git_push` behind that same gate. OAuth therefore needs
+both a sufficient Git mode and `OAUTH_ENABLE_WRITE_TOOLS=true` for commit or
+push. Push mode additionally fails fast unless
+`OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES` contains at least one valid,
+comma-separated exact `name=https://host/path.git` mapping. Production mappings
+accept HTTPS only and reject credentials, queries, and fragments.
+
+`OBSIDIAN_EVERYWHERE_GIT_REPO_PATH` is a second operator-only startup setting.
+It defaults to `.`, may select one safe vault-relative real directory, and is
+never caller input. The selected directory must itself be the canonical root of
+a normal repository with a real local `.git` directory and its canonical
+Git/common directories inside it. The full vault remains indexed; only Git
+operations and their path namespace are scoped to the selected repository.
+Parent discovery, linked worktrees, submodule roots, symlinked repository path
+components, symlinked/external core metadata, alternate object stores, and
+unsafe object/ref/log layouts are rejected for every Git tool. Commit and push
+additionally reject shallow repositories, sparse checkouts, per-worktree Git
+configuration, grafts/replacement refs, detached targets, and
+merge/rebase/cherry-pick/revert/bisect state. Every Git operation probes Mount
+Guard and fails closed while the live vault is unavailable or reconciling.
+The canonical vault, selected repository, and `.git` device/inode identities
+are captured at startup, rechecked before every Git subprocess, and included in
+commit/push approval fingerprints. A changed mount, replaced directory, or new
+symlink therefore requires operator verification and a process restart.
+
+`git_commit` and `git_push` use the same explicit two-step shape:
+`action: "preview"` returns a random UUID that expires after five minutes;
+`action: "execute"` accepts only that UUID, consumes it on the first attempt,
+recomputes the reviewed state, and aborts on any mismatch. Commit approval binds
+the branch/ref, old `HEAD`, single-line secret-scanned message, exact paths and
+rename paths, selected content, and exact proposed tree. A temporary index
+builds a commit from only those paths; execution rebuilds the tree, then an
+expected-old-value ref update advances the branch without including unrelated
+staged changes. Push approval binds the branch, `HEAD`, exact existing upstream,
+remote name, reviewed local-tracking OID, and literal operator-pinned URL.
+Preview performs no network access; execute pushes the one approved `HEAD` to
+Git's exact configured upstream remote ref through that literal URL. The target
+comes from `%(upstream:remoteref)`, not the local branch name, so a local `main`
+tracking `origin/release` updates only `release`.
+
+**Safety design:** Git commands are fixed argument arrays executed with
+`shell: false`. Caller paths are literal, selected-repository-relative, exact changed paths;
+proposed entries must be regular files, while explicit deletions are supported.
+Hidden/excluded/sensitive paths, traversal, pathspec magic, symlinks,
+directories, unmerged entries, and suspected credentials are refused. External
+diff/textconv, fsmonitor, hooks, signing, clean filters and Git LFS, submodule
+recursion, unconditional force, tags, follow-tags, caller-provided refspecs, and
+interactive prompts are disabled. An exact-OID `--force-with-lease` is used only
+as a compare-and-swap guard so a deleted, advanced, or reset remote ref fails.
+Push also rejects repository-local credential helpers, URL rewrites, all
+`http.*` transport settings, and selected-remote proxy settings; trusted
+credentials and network policy remain in operator-controlled user/system Git
+configuration.
+Automatic content review is bounded to 8 MiB per file/blob and 32 MiB total;
+outgoing push review is additionally capped at 100 commits and 200 changed blobs
+and scans commit messages and merge results. `git_diff` exposes untracked content
+only for explicit safe paths in `head` mode.
+
+Push accepts no caller URL, credential, remote, branch, or refspec. The current
+branch must already track a normal branch whose remote name has an exact
+operator-provided HTTPS mapping. The repository remote must resolve to exactly
+one push URL and its normalized value must equal that mapping. Execution then
+supplies the mapped URL literally. SSH, HTTP, `git://`, file/local paths, custom
+remote helpers, multiple push URLs, and credentials/query/fragment in the
+mapping are rejected. Behind/divergent state or an exact-lease mismatch must be
+reconciled with trusted local Git. The existing non-interactive HTTPS credential
+configuration on the vault machine remains an explicit operator trust
+dependency.
+
+**Reason:** Status, diff, local history, a selected-file checkpoint, and an
+explicitly approved outbound push form a useful end-to-end workflow after an
+agent edits a vault—especially through Remote Vault Bridge. But Git's command
+surface is also a code-execution surface: aliases can expand to shell commands;
+hooks, filters, diff/textconv drivers, SSH configuration, and credential helpers
+can execute programs; arbitrary refspecs can rewrite or delete remote refs. The
+same default-on boundary used for ordinary note writes is therefore too broad
+for repository history and publication. A separate mode, pinned push mappings,
+fixed commands, and reviewed state-bound approvals make the capability visible
+and incremental without pretending Git can be safely sandboxed by a loose
+argument filter.
+
+**Alternatives:** A generic `git_exec` or shell tool — rejected as remote code
+execution by design. A single `GIT_ENABLED=true` flag — rejected because local
+inspection, local history mutation, and network publication are materially
+different capabilities. Automatically commit every vault change — rejected
+because it can capture unrelated, hidden, staged, or sensitive work. Accept a
+remote URL/refspec per call, support unconditional force/tags, or create
+upstreams — rejected because it bypasses operator configuration and widens
+remote impact. Add
+pull/fetch/merge as “sync” — rejected because incoming history introduces
+conflicts and working-tree mutation that cannot be safely reduced to the same
+preview primitive. Run hooks, signing, filters/LFS, or submodules for feature
+parity — rejected because those features intentionally execute local code and
+must remain in the operator's trusted local Git workflow.
+
+**Testing:** `src/git/vault-git.test.ts` covers configured subdirectory and
+exact-root/metadata enforcement;
+safe status/diff/log including explicit untracked-head diff; single-line message
+and outgoing message/merge secret review; Unicode/space-containing paths;
+explicit new/delete/rename commits; exact-tree approval and preservation of
+unrelated staged changes; hook/filter suppression; expired, one-use, and
+state-invalidated approvals; pinned literal destinations; exact-OID lease failure; and a local
+branch tracking a differently named remote branch. `src/mcp/git-tools.test.ts`
+covers capability and ordinary-write gating, annotations, strict schemas,
+preview/execute behavior, and Mount Guard failure.

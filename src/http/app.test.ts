@@ -21,7 +21,7 @@ describe("Streamable HTTP transport (real listening server)", () => {
   beforeAll(async () => {
     engine = new VaultEngine({ vaultDir, dbPath: ":memory:" });
     await engine.init();
-    const app = createHttpApp(engine, { bearerToken: TOKEN });
+    const app = createHttpApp(engine, { bearerToken: TOKEN, gitMode: "read" });
     await new Promise<void>((resolve) => {
       httpServer = app.listen(0, () => resolve());
     });
@@ -110,6 +110,10 @@ describe("Streamable HTTP transport (real listening server)", () => {
     const listBody = await listRes.text();
     expect(listBody).toContain("vault_overview");
     expect(listBody).toContain("get_context_bundle");
+    expect(listBody).toContain("git_status");
+    expect(listBody).toContain("git_diff");
+    expect(listBody).toContain("git_log");
+    expect(listBody).not.toContain('"name":"git_commit"');
 
     const callRes = await fetch(`${baseUrl}/mcp`, {
       method: "POST",

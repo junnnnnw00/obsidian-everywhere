@@ -27,7 +27,7 @@
 
 ---
 
-Obsidian Everywhere는 두 가지 생각을 중심으로 설계되었습니다.
+Obsidian Everywhere는 세 가지 생각을 중심으로 설계되었습니다.
 
 1. **노트는 텍스트 파일 폴더가 아니라 그래프이자 의미 기반 지식베이스입니다.**
    백링크, n-hop 이웃, 최단 경로, PageRank, 전문 검색과 로컬 다국어
@@ -36,6 +36,9 @@ Obsidian Everywhere는 두 가지 생각을 중심으로 설계되었습니다.
    Remote Vault Bridge는 같은 그래프와 보호된 쓰기 도구를 인증된
    Streamable HTTP로 제공합니다. 외부 서버의 Claude Code나 Codex가 내
    컴퓨터에 남아 있는 vault를 검색하고, 추론하고, 수정할 수 있습니다.
+3. **버전 관리에는 일반 파일 쓰기보다 좁은 권한 경계가 필요합니다.** Git
+   도구는 기본적으로 꺼져 있으며, commit과 push는 preview, 명시적 승인,
+   짧은 수명의 일회용 approval ID를 요구합니다.
 
 로컬 vault가 계속 원본입니다. 호스팅된 사본이나 telemetry, 필수 클라우드
 계정은 없습니다. 원격 연결은 사용자가 직접 운영하는 transport입니다.
@@ -44,7 +47,7 @@ Obsidian Everywhere는 두 가지 생각을 중심으로 설계되었습니다.
 
 - [44초로 보는 Remote Vault Bridge](#44초로-보는-remote-vault-bridge)
 - [주요 기능](#주요-기능)
-- [두 가지 핵심 기능](#두-가지-핵심-기능)
+- [세 가지 핵심 기능](#세-가지-핵심-기능)
 - [내 vault 없이 체험하기](#내-vault-없이-체험하기)
 - [왜 Obsidian Everywhere인가요?](#왜-obsidian-everywhere인가요)
 - [서버는 어디에서 실행되나요?](#서버는-어디에서-실행되나요)
@@ -62,7 +65,7 @@ vault (.md 파일)
 SQLite 인덱스 (FTS5)  ⇄  인메모리 그래프 (graphology)
   │                         n-hop · 최단 경로 · PageRank
   ▼
-41개 MCP 도구
+핵심 MCP 도구 41개 + 선택형 Vault Git 도구 최대 5개
   │
   ▼
 로컬 stdio  ·  인증된 원격 HTTP  ·  OAuth HTTP
@@ -85,10 +88,13 @@ SQLite 인덱스 (FTS5)  ⇄  인메모리 그래프 (graphology)
   rollback snapshot, 복구 가능한 삭제를 제공합니다. opt-in Beta mount
   guard는 외장 드라이브·NAS·container mount가 사라지면 인덱스를 보존하고
   쓰기를 차단한 뒤, 복귀 시 전체 재조정합니다.
-- **41개 MCP 도구** — 구조화 읽기, 첨부파일 추출, 그래프 탐색, 시맨틱 검색, 안전한
+- **핵심 MCP 도구 41개, Vault Git 활성화 시 최대 46개** — 구조화 읽기, 첨부파일 추출, 그래프 탐색, 시맨틱 검색, 안전한
   수명주기 작업, Obsidian 설정과 명시적인 `vault_status`를 제공합니다.
+- **Vault Git** — 기본값은 꺼져 있으며, 선택한 저장소의 status·diff·log와
+  preview/approval 기반 commit·push를 제공합니다. 최신 설정과 보안 경계는
+  영문 [Vault Git 가이드](docs/git-vault.md)를 참고하세요.
 
-## 두 가지 핵심 기능
+## 세 가지 핵심 기능
 
 ### 1. 연결된 vault를 집중된 AI 컨텍스트로
 
@@ -107,6 +113,14 @@ HTTPS tunnel로 노출한 뒤 원격 MCP 클라이언트에 등록합니다. 원
 
 전체 과정은 **[ngrok Remote Vault Bridge 튜토리얼](docs/ngrok-remote.ko.md)**을
 참고하세요.
+
+### 3. 승인한 vault 변경을 Git으로 기록하고 배포
+
+vault 전체 또는 그 안의 한 저장소 폴더에 대해 status·diff·log를 확인하고,
+선택한 파일만 commit한 뒤 기존 upstream으로 push할 수 있습니다. 기능은
+명시적으로 활성화해야 하며, 임의의 Git 명령·pull·fetch·branch 전환은
+제공하지 않습니다. 자세한 설정과 보안 경계는 영문
+**[Vault Git 가이드](docs/git-vault.md)**를 참고하세요.
 
 ### 제공 도구
 
@@ -186,7 +200,7 @@ npx -y obsidian-everywhere doctor /절대/경로/내/vault
 | | **Obsidian Everywhere** | [obsidian-mcp-server](https://github.com/cyanheads/obsidian-mcp-server) | [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) | [TurboVault](https://github.com/epistates/turbovault) |
 |---|---|---|---|---|
 | 설치 | `npx` | `npx` | Obsidian community plugin | `cargo install` / binary |
-| 공개된 도구 수 | **41** | 14 | 16 | 74 |
+| 공개된 도구 수 | **핵심 41 + 선택형 Git 5** | 14 | 16 | 74 |
 | Obsidian 실행 필요 | **아니요** | 예 | 예 | **아니요** |
 | 대표 그래프 기능 | PageRank·최단 경로·n-hop·미해결 링크 | 구조화 읽기의 outgoing links | 실행 중인 Obsidian metadata/search | multi-hop·centrality·cluster·추천 |
 | 안전한 편집 | 부분 편집·bulk dry-run·snapshot·rollback | 정밀 편집·frontmatter/tag 관리 | live heading/block/frontmatter patch | conflict hash·audit rollback·Git batch |
@@ -338,8 +352,8 @@ npm run memory:smoke
 
 ## 프로젝트 상태
 
-현재 v0.8.1은 그래프·선택적 로컬 시맨틱 context engine, stdio·bearer HTTP·OAuth
-HTTP transport, MCP 도구 41개, 보호된 부분·일괄 편집과 Codex·ChatGPT
+현재 v0.9.0은 그래프·선택적 로컬 시맨틱 context engine, stdio·bearer HTTP·OAuth
+HTTP transport, 핵심 MCP 도구 41개와 선택형 Vault Git 도구 5개, 보호된 부분·일괄 편집과 Codex·ChatGPT
 Desktop·Claude 설정을 제공합니다. Remote Vault Bridge는 정식 배포 경로이며,
 선택형 mount guard는 removable drive·NAS·container mount 환경의 피드백을
 받는 **Beta**입니다.

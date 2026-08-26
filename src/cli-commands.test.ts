@@ -1,4 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -31,6 +32,32 @@ describe("growth CLI commands", () => {
     expect(report.unresolvedCount).toBe(1);
     expect(text).not.toContain("secret phrase");
     expect(formatDoctorReport(report, { redactPaths: true })).not.toContain(vaultDir);
+  });
+
+  it("reports Git readiness without printing remote URLs", async () => {
+    const vaultDir = mkdtempSync(path.join(os.tmpdir(), "oe-doctor-git-"));
+    tempDirs.push(vaultDir);
+    writeFileSync(path.join(vaultDir, "Note.md"), "# Note\n");
+    execFileSync("git", ["init", "--initial-branch=main"], { cwd: vaultDir });
+    execFileSync("git", ["remote", "add", "origin", "https://token@example.invalid/private.git"], { cwd: vaultDir });
+    const text = formatDoctorReport(await diagnoseVault(vaultDir));
+    expect(text).toContain("Git executable");
+    expect(text).toContain("Configured path '.' is an exact Git root (1 configured remote(s); URLs hidden)");
+    expect(text).not.toContain("token@example.invalid");
+  });
+
+  it("reports a configured nested repository without narrowing the vault", async () => {
+    const vaultDir = mkdtempSync(path.join(os.tmpdir(), "oe-doctor-nested-git-"));
+    tempDirs.push(vaultDir);
+    const repository = path.join(vaultDir, "DSLab");
+    mkdirSync(repository);
+    writeFileSync(path.join(vaultDir, "Outside.md"), "# Outside\n");
+    writeFileSync(path.join(repository, "Note.md"), "# Note\n");
+    execFileSync("git", ["init", "--initial-branch=main"], { cwd: repository });
+    const report = await diagnoseVault(vaultDir, "DSLab");
+    const text = formatDoctorReport(report);
+    expect(report.noteCount).toBe(2);
+    expect(text).toContain("Configured path 'DSLab' is an exact Git root");
   });
 
   it("runs a self-contained dry-run demo", async () => {

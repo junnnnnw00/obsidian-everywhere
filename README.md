@@ -4,7 +4,7 @@
 
 # 🧠 Obsidian Everywhere
 
-**Turn linked notes into AI context — and securely bridge your local vault to agents running anywhere.**
+**Turn linked notes into AI context, use that context from agents anywhere, and checkpoint approved changes with Git.**
 
 [![CI](https://github.com/junnnnnw00/obsidian-everywhere/actions/workflows/ci.yml/badge.svg)](https://github.com/junnnnnw00/obsidian-everywhere/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -15,7 +15,7 @@
 [![npm downloads](https://img.shields.io/npm/dt/obsidian-everywhere?logo=npm&label=downloads)](https://www.npmjs.com/package/obsidian-everywhere)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-*Graph context · local semantic search · safe edits · remote agents over MCP*
+*Graph context · local semantic search · remote agents · guarded edits · opt-in Git checkpoints*
 
 [![obsidian-everywhere MCP server](https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere/badges/card.svg)](https://glama.ai/mcp/servers/junnnnnw00/obsidian-everywhere)
 
@@ -31,7 +31,7 @@
 
 ---
 
-Obsidian Everywhere is built around two ideas:
+Obsidian Everywhere is built around three ideas:
 
 1. **Notes are a graph and a semantic knowledge base, not a folder of text
    files.** Backlinks, n-hop neighborhoods, shortest paths, PageRank, full-text
@@ -42,16 +42,23 @@ Obsidian Everywhere is built around two ideas:
    Streamable HTTP. A Claude Code or Codex process on another server can search,
    reason over, append to, and reorganize a vault that remains on your own
    machine.
+3. **Version-control actions deserve a narrower boundary than file writes.** If
+   the vault or one configured folder inside it is already a Git repository, the
+   opt-in Git tools can inspect status, bounded diffs, and local history. Commit
+   and push each require a preview, explicit confirmation, and a short-lived
+   one-use approval ID.
 
-The local path stays the source of truth. There is no hosted copy, telemetry
-service, or mandatory cloud account. Remote access is a transport you operate,
-not a vault-sync product.
+The local path stays the source of truth. Obsidian Everywhere does not create a
+hosted copy, telemetry service, or mandatory cloud account; optional Git push
+publishes only to a repository the operator already configured. Remote access
+is a transport you operate, not a vault-sync product.
 
 ## Contents
 
 - [Watch the Remote Vault Bridge in 44 seconds](#watch-the-remote-vault-bridge-in-44-seconds)
 - [Features](#features)
-- [Two core capabilities](#two-core-capabilities)
+- [Three core workflows](#three-core-workflows)
+- [Vault Git](#vault-git)
 - [Try it without your vault](#try-it-without-your-vault)
 - [Why Obsidian Everywhere?](#why-obsidian-everywhere)
 - [Where does this actually run?](#where-does-this-actually-run)
@@ -71,7 +78,7 @@ vault (.md files)
 SQLite index (FTS5)  ⇄  in-memory graph (graphology)
   │                       n-hop · shortest path · PageRank
   ▼
-41 MCP tools
+41 core MCP tools + 0–5 opt-in Git tools
   │
   ▼
 local stdio  ·  authenticated remote HTTP  ·  OAuth HTTP
@@ -104,11 +111,16 @@ local stdio  ·  authenticated remote HTTP  ·  OAuth HTTP
   mount guard. If a removable drive, NAS share, or container mount disappears,
   the index is preserved, writes are blocked, and a full reconciliation runs
   after it returns.
-- 🛠️ **41 graph-native MCP tools** — structured reads, attachment extraction, graph navigation,
-  semantic retrieval, safe lifecycle operations, persisted Obsidian settings,
-  and explicit `vault_status` health reporting.
+- 🌱 **Reviewable Git checkpoints (off by default)** — inspect status, bounded
+  diffs, and local history for the vault or one configured repository folder.
+  Higher modes add selected-file commits and operator-pinned HTTPS pushes, both
+  behind preview and a five-minute one-use approval.
+- 🛠️ **41 core MCP tools, up to 46 when Git is explicitly enabled** — structured
+  reads, attachment extraction, graph navigation, semantic retrieval, safe
+  lifecycle operations, persisted Obsidian settings, and explicit health
+  reporting.
 
-## Two core capabilities
+## Three core workflows
 
 ### 1. Turn a linked vault into focused AI context
 
@@ -128,6 +140,20 @@ sees the change.
 
 For the complete ngrok path, see the
 **[Remote Vault Bridge with ngrok tutorial](docs/ngrok-remote.md)**.
+
+### 3. Review and checkpoint vault changes with Git
+
+When the vault or one real folder inside it contains its own `.git` directory,
+an agent can inspect the same repository state you would inspect locally, then
+create a commit from an explicit file list. Set
+`OBSIDIAN_EVERYWHERE_GIT_REPO_PATH` to that vault-relative folder, or leave its
+default `.` to use the vault root. Push is a separate, stricter capability: it
+can only publish the current `HEAD` to its existing upstream branch through an
+operator-pinned HTTPS destination. It never pulls, fetches, changes branches,
+constructs a free-form refspec, or accepts arbitrary Git arguments.
+
+Start with `OBSIDIAN_EVERYWHERE_GIT_MODE=read`; move to `commit` or `push` only
+after reviewing the safety model in the **[Vault Git guide](docs/git-vault.md)**.
 
 <details>
 <summary><strong>Full tool list</strong></summary>
@@ -174,12 +200,154 @@ For the complete ngrok path, see the
 | `bulk_replace` / `rollback_bulk_edit` | Dry-run-first folder/regex replacement with snapshots and rollback |
 | `set_hotkey` / `set_templates_folder` | Update persisted Obsidian settings (vault reload may be required) |
 
-Write tools are on by default for stdio and the
+**Vault Git — registered only when explicitly enabled**
+
+| Tool | Minimum Git mode | What it does |
+|---|---|---|
+| `git_status` | `read` | Safe, selected-repository-relative working-tree status and local ahead/behind information; no fetch |
+| `git_diff` | `read` | Bounded patch for safe tracked paths, plus explicitly named untracked paths in `head` mode; external diff drivers, textconv, and submodules stay disabled |
+| `git_log` | `read` | Recent local commit history, optionally for one safe file |
+| `git_commit` | `commit` + normal write gate | Preview, then commit only explicitly selected safe files using a five-minute one-use approval ID |
+| `git_push` | `push` + normal write gate | Preview, then push the approved current `HEAD` to its existing upstream through an operator-pinned HTTPS destination |
+
+| Effective setup | Registered tools |
+|---|---:|
+| Git `off`, ordinary writes disabled | 22 |
+| Git `off`, ordinary writes enabled | 41 |
+| Git `read`, ordinary writes disabled | 25 |
+| Git `read`, ordinary writes enabled | 44 |
+| Git `commit`, ordinary writes disabled | 25 |
+| Git `commit`, ordinary writes enabled | 45 |
+| Git `push`, ordinary writes disabled | 25 |
+| Git `push`, ordinary writes enabled | 46 |
+
+If the ordinary write gate is disabled, `git_commit` and `git_push` stay absent
+even when the configured Git mode is higher; the three Git read tools remain
+available. OAuth therefore requires both a sufficient Git mode and
+`OAUTH_ENABLE_WRITE_TOOLS=true` for commit or push.
+
+Ordinary write tools are on by default for stdio and the
 bearer-token HTTP transport, and off by default for the public OAuth
 connector transport (opt in with `OAUTH_ENABLE_WRITE_TOOLS=true`) — see
-[Configuration](#configuration) and DECISIONS.md D15.
+[Configuration](#configuration) and DECISIONS.md D15. Git is independently off
+by default on every transport.
 
 </details>
+
+## Vault Git
+
+Vault Git is an optional checkpoint-and-publish layer for repositories already
+inside a vault. It is not a sync engine and it never initializes a repository.
+Git must be installed on the vault machine. The operator selects exactly one
+repository with `OBSIDIAN_EVERYWHERE_GIT_REPO_PATH`, a safe vault-relative real
+directory that defaults to `.`. That selected directory must be the exact root
+of a normal repository with a real, local `.git` directory. The rest of the
+vault remains indexed and available to ordinary graph, search, and note tools.
+
+For example, a vault at `/Volumes/SanDisk/jwhong` can keep full-vault context
+while Git tools operate only on `/Volumes/SanDisk/jwhong/DSLab`:
+
+```bash
+export OBSIDIAN_VAULT_PATH=/Volumes/SanDisk/jwhong
+export OBSIDIAN_EVERYWHERE_GIT_REPO_PATH=DSLab
+export OBSIDIAN_EVERYWHERE_GIT_MODE=read
+```
+
+Git tool path inputs and outputs are relative to `DSLab` in that setup;
+ordinary note and file tool paths remain relative to the vault root. Parent
+repository discovery, linked worktrees, submodule roots, symlinked repository
+paths, and unsafe external or symlinked object/ref/log/core metadata
+layouts—including alternate object stores—are refused by every Git tool.
+The canonical vault, selected repository, and `.git` directory identities are
+captured at startup and rechecked before every Git subprocess; replacing a
+directory or introducing a symlink fails closed until the operator verifies the
+mount and restarts the service.
+Commit and push additionally refuse detached branches, shallow history, sparse
+checkouts, per-worktree Git configuration, grafts/replacement refs, and
+in-progress history operations.
+
+With the supplied Compose file, set
+`OBSIDIAN_VAULT_HOST_PATH=/Volumes/SanDisk/jwhong` and
+`OBSIDIAN_EVERYWHERE_HTTP_GIT_REPO_PATH=DSLab` for the bearer service. The OAuth
+service has its own independent `OBSIDIAN_EVERYWHERE_OAUTH_GIT_REPO_PATH` input;
+both service-specific repository paths default to `.`.
+
+Choose the narrowest capability that covers your workflow:
+
+| `OBSIDIAN_EVERYWHERE_GIT_MODE` | Tools added | Network access |
+|---|---|---|
+| `off` (default) | none | none |
+| `read` | `git_status`, `git_diff`, `git_log` | none; history and ahead/behind are local only |
+| `commit` | read tools + `git_commit` when ordinary writes are enabled | none |
+| `push` | read/commit tools + `git_push` when ordinary writes are enabled | approved push to an existing upstream only |
+
+Push mode also requires a comma-separated operator mapping from each allowed
+upstream remote name to one exact credential-free HTTPS destination. Continuing
+the `DSLab` example above:
+
+```bash
+export OBSIDIAN_EVERYWHERE_GIT_MODE=push
+export OBSIDIAN_EVERYWHERE_GIT_REPO_PATH=DSLab
+export OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES=origin=https://github.com/owner/repo.git
+```
+
+Use `OBSIDIAN_EVERYWHERE_GIT_REPO_PATH=.` instead only when the whole vault is
+the repository.
+
+The selected branch must already track a normal branch on the mapped remote,
+and that remote's sole resolved push URL must exactly match the pinned mapping.
+The URL is operator configuration, never MCP tool input; credentials, queries,
+fragments, caller-selected branches, and caller-selected refspecs are refused.
+Git must authenticate to that exact URL non-interactively using credentials
+already configured on the vault machine.
+
+The destination ref comes from the branch's existing upstream mapping, not from
+the local branch name. For example, local `main` tracking `origin/release` can
+push only to `release`; the caller cannot substitute another branch.
+
+Commit and push are deliberately two-step operations:
+
+```text
+git_status
+git_diff
+git_commit { action: "preview", message: "docs: update project notes", paths: ["Projects/Atlas.md"] }
+  → inspect the plan and explicitly approve it
+git_commit { action: "execute", approvalId: "<UUID from preview>" }
+
+git_push { action: "preview" }
+  → inspect the exact HEAD, upstream, and outgoing count; explicitly approve it
+git_push { action: "execute", approvalId: "<UUID from preview>" }
+```
+
+An approval ID expires after five minutes, works once, and is invalidated when
+the reviewed repository state changes. A preview never creates a commit or
+contacts the network. Hidden, excluded, and sensitive paths are omitted or
+blocked; commits select exact changed paths whose resulting entries are regular
+files, plus deletions; hooks, signing, clean filters (including Git LFS),
+submodules, and suspected secrets are refused.
+Push review is capped at 100 outgoing commits and 200 changed blobs, with an
+8 MiB per-file/blob and 32 MiB aggregate content limit; commit messages and
+merge results are scanned too. Commit messages are single-line and
+secret-scanned, and commit approval binds the exact proposed tree.
+
+Push execution uses the displayed literal HTTPS destination and an exact
+OID lease for the reviewed upstream ref. That lease is a compare-and-swap
+guard—not permission for an arbitrary force-push—so a deleted, advanced, or
+reset remote ref fails instead of being overwritten.
+Repository-local credential helpers, URL rewrites, `http.*` transport settings,
+and selected-remote proxy overrides are also refused for push. Trusted HTTPS
+credentials and any required network policy belong in the vault machine's user
+or system Git configuration, outside the repository.
+
+There is intentionally no `git_exec` or free-form command tool. Passing raw Git
+arguments to a remote agent is effectively a remote-code-execution primitive:
+Git aliases can expand to shell commands, hooks execute programs, diff/textconv
+drivers run helpers, SSH transports launch commands, and credential helpers may
+invoke executables. A small set of fixed commands with fixed arguments is the
+safety boundary, not a cosmetic API choice.
+
+Read the complete setup, operational limits, and troubleshooting guide before
+enabling commit or push: **[Using a Git-backed vault](docs/git-vault.md)**.
 
 ## Try it without your vault
 
@@ -214,7 +382,7 @@ you work rather than assuming one server wins every category.
 | | **Obsidian Everywhere** | [obsidian-mcp-server](https://github.com/cyanheads/obsidian-mcp-server) | [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) | [TurboVault](https://github.com/epistates/turbovault) |
 |---|---|---|---|---|
 | Install | `npx` | `npx` | Obsidian community plugin | `cargo install` / binary |
-| Published tools | **39** | 14 | 16 | 74 |
+| Published tools | **41 core; up to 46 with opt-in Git** | 14 | 16 | 74 |
 | Obsidian must be open | **No** | Yes | Yes | **No** |
 | Best graph capability | PageRank, shortest path, n-hop, unresolved links | Outgoing links in structured reads | Live Obsidian metadata/search | Multi-hop, centrality, clusters, suggestions |
 | Safe editing | Partial edits; bulk dry-run, snapshot, rollback | Surgical edits and frontmatter/tag management | Live heading/block/frontmatter patching | Conflict hashes, audit rollback, Git-backed batch |
@@ -226,8 +394,8 @@ Comparison checked against each project's published documentation on
 2026-07-20. A blank or narrower cell means “not documented there,” not that a
 project can never support it. If you need active-file state or command-palette
 execution, choose a plugin-backed server. If you want a headless, one-command
-graph server with token-budgeted context and guarded cleanup, that is the niche
-Obsidian Everywhere is designed for.
+graph server with token-budgeted context, guarded cleanup, and narrowly scoped
+Git checkpoints, that is the niche Obsidian Everywhere is designed for.
 
 Everything runs locally by default. There is no account, API key, hosted vault,
 or telemetry requirement.
@@ -235,7 +403,8 @@ or telemetry requirement.
 See [`docs/architecture.md`](docs/architecture.md) for how it's built,
 [`docs/deploy.md`](docs/deploy.md) for the deployment topology, and
 [`docs/ngrok-remote.md`](docs/ngrok-remote.md) for an end-to-end external
-server tutorial.
+server tutorial. Git-backed vault operators should also read
+[`docs/git-vault.md`](docs/git-vault.md).
 
 ## Where does this actually run?
 
@@ -288,7 +457,8 @@ codex mcp list
 Then restart ChatGPT Desktop (or the IDE extension). In ChatGPT Desktop you
 can also add it through **Settings → MCP servers → Add server**, choose
 **STDIO**, and enter the same command and arguments. Type `/mcp` in Codex to
-confirm that the server and its 39 tools are connected.
+confirm that the expected tools are connected: 41 with ordinary writes enabled
+and Git off, or the conditional counts documented in [Vault Git](#vault-git).
 
 For a project-scoped configuration instead, add this to a trusted project's
 `.codex/config.toml`; use `~/.codex/config.toml` to make it available globally:
@@ -373,11 +543,14 @@ Note the vault machine's Tailscale hostname/IP from `tailscale status`
 **Step 2 — start the server, on the vault machine:**
 
 ```bash
-OBSIDIAN_VAULT_PATH=/path/to/vault OBSIDIAN_EVERYWHERE_TOKEN=$(openssl rand -hex 32) \
+openssl rand -hex 32
+# Save that output in a password manager, then use the same value on both machines.
+export OBSIDIAN_EVERYWHERE_TOKEN="<saved token>"
+OBSIDIAN_VAULT_PATH=/path/to/vault \
   npx -y --package obsidian-everywhere obsidian-everywhere-http
 ```
 
-Keep this token — you'll need it in step 3. (To keep this running
+Keep the saved token — you'll need it in step 3. (To keep this running
 persistently instead of in a foreground terminal, see the LaunchAgent
 setup in [`docs/deploy.md`](docs/deploy.md#2-remote-clients-over-tailscale-static-bearer-token),
 or run it in Docker via `docker-compose.yml` if the vault machine is a server.)
@@ -414,9 +587,8 @@ walkthrough (Docker, LaunchAgent):
 
 This needs a public HTTPS endpoint — claude.ai's servers can't reach your
 Tailscale network or `localhost`. See
-[`docs/deploy.md`](docs/deploy.md#3-claudeai-webmobile-custom-connector-oauth-21--cloudflare-tunnel)
-for the full Cloudflare Tunnel walkthrough (including the no-domain-needed
-Quick Tunnel option for testing). Once your server is reachable at
+[`docs/deploy.md`](docs/deploy.md#3-claudeai-webmobile-custom-connector-oauth-21-cloudflare-tunnel)
+for the full Cloudflare Tunnel walkthrough. Once your server is reachable at
 `https://your-domain`:
 
 1. claude.ai → Settings → Connectors → Add custom connector
@@ -434,7 +606,7 @@ that with no Cloudflare/OAuth involved.
 | Env var | Used by | Meaning |
 |---|---|---|
 | `OBSIDIAN_VAULT_PATH` | all | Vault path (or pass as a positional CLI arg) |
-| `OBSIDIAN_EVERYWHERE_DB` | all | SQLite index path override. Defaults are transport-specific: `index-stdio.db`, `index-http.db`, or `index-oauth.db` under `<vault>/.obsidian-everywhere/`. |
+| `OBSIDIAN_EVERYWHERE_DB` | all | SQLite index path override. Filenames are transport-specific: `index-stdio.db`, `index-http.db`, or `index-oauth.db`. The normal default is `<vault>/.obsidian-everywhere/<filename>`; a directly launched macOS process whose vault is under `/Volumes/` instead uses a vault-specific file under `~/.obsidian-everywhere/` to avoid unsafe SQLite WAL behavior on external filesystems. Compose sets its own explicit `/vault/.obsidian-everywhere/` paths. |
 | `OBSIDIAN_EVERYWHERE_TOKEN` | `http-cli.js` | Static bearer token |
 | `PORT` | `http-cli.js`, `oauth-http-cli.js` | HTTP port (defaults 3737 / 3738) |
 | `OAUTH_ISSUER_URL` | `oauth-http-cli.js` | Public HTTPS origin (e.g. your Cloudflare Tunnel hostname) |
@@ -448,6 +620,28 @@ that with no Cloudflare/OAuth involved.
 | `OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL` | all entrypoints | Optional vault-relative identity path, e.g. `.obsidian/app.json` |
 | `OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS` | all entrypoints | Runtime mount probe interval (default `5000`) |
 | `OAUTH_ENABLE_WRITE_TOOLS` | `oauth-http-cli.js` | Set to `true` to enable all write tools on the public connector (default: off) |
+| `OBSIDIAN_EVERYWHERE_GIT_MODE` | direct processes and container environment | Git capability: `off` (default), `read`, `commit`, or `push`. `commit`/`push` still require the transport's ordinary write gate. |
+| `OBSIDIAN_EVERYWHERE_GIT_REPO_PATH` | direct processes and container environment | One safe vault-relative real directory containing the repository; defaults to `.`. Git tool paths are relative to this directory, while ordinary tool paths remain vault-relative. |
+| `OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES` | direct processes and container environment | Comma-separated exact `name=https://host/path.git` mappings, e.g. `origin=https://github.com/owner/repo.git`; required in `push` mode. URLs must contain no credentials, query, or fragment. |
+| `OBSIDIAN_EVERYWHERE_HTTP_GIT_MODE` / `OBSIDIAN_EVERYWHERE_HTTP_GIT_REPO_PATH` / `OBSIDIAN_EVERYWHERE_HTTP_GIT_ALLOWED_PUSH_REMOTES` | supplied Docker Compose `.env` | Bearer-service inputs mapped to the three generic Git variables inside its container; mode defaults to `off` and repository path to `.`. |
+| `OBSIDIAN_EVERYWHERE_OAUTH_GIT_MODE` / `OBSIDIAN_EVERYWHERE_OAUTH_GIT_REPO_PATH` / `OBSIDIAN_EVERYWHERE_OAUTH_GIT_ALLOWED_PUSH_REMOTES` | supplied Docker Compose `.env` | Independent OAuth-service inputs mapped inside its container; mode defaults to `off` and repository path to `.`. OAuth commit/push still requires `OAUTH_ENABLE_WRITE_TOOLS=true`. |
+
+Obsidian Everywhere does not modify a user's vault `.gitignore`. Built-in
+Vault Git rejects hidden `.obsidian-everywhere` paths, but if an index directory
+falls inside a repository you also manage with ordinary Git, add
+`.obsidian-everywhere/` to that repository's own `.gitignore`.
+
+Git configuration is independent of semantic search and ordinary note tools.
+For stdio and bearer HTTP, `OBSIDIAN_EVERYWHERE_READONLY=true` removes both
+ordinary write tools and Git commit/push. For OAuth, commit/push require both
+`OBSIDIAN_EVERYWHERE_GIT_MODE=commit|push` and
+`OAUTH_ENABLE_WRITE_TOOLS=true`. `git_status`, `git_diff`, and `git_log` remain
+read-only tools at every mode above `off`.
+
+Direct CLI, HTTP, OAuth, and LaunchAgent processes read the generic Git names.
+The supplied `docker-compose.yml` deliberately uses the service-specific
+HTTP/OAuth `.env` inputs above so enabling Git for one exposed service cannot
+silently enable it for the other.
 
 ## Development
 
@@ -471,12 +665,14 @@ exclusion, and Korean filenames/tags/wikilinks). It's what every test in
 
 ## Project status
 
-Current v0.8.1 includes the graph and optional local semantic context engine, all three
-transports (stdio, bearer HTTP, OAuth HTTP), 41 MCP tools, guarded partial and
-bulk writes, and client setup for Codex, ChatGPT Desktop, and Claude. Remote
-Vault Bridge is a first-class deployment path. Its opt-in mount guard remains
-**Beta** while it receives cross-platform feedback for removable drives, NAS
-shares, and container mounts.
+The current release line includes the graph and optional local semantic context
+engine, all three transports (stdio, bearer HTTP, OAuth HTTP), 41 core MCP
+tools, guarded partial and bulk writes, and client setup for Codex, ChatGPT
+Desktop, and Claude. Remote Vault Bridge is a first-class deployment path. Its
+opt-in mount guard remains **Beta** while it receives cross-platform feedback
+for removable drives, NAS shares, and container mounts. The separately opt-in
+Vault Git tools expose `read`, `commit`, and `push` as progressively wider,
+review-gated capabilities instead of a general-purpose Git shell.
 
 Help test a real remote-vault setup in
 [Beta Issue #18](https://github.com/junnnnnw00/obsidian-everywhere/issues/18),

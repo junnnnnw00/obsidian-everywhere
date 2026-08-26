@@ -3,6 +3,7 @@ import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from "@modelconte
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import { mountMcpEndpoint } from "../http/app.js";
 import type { VaultEngine } from "../vault-engine.js";
+import type { GitMode, GitPushTarget, VaultGitOptions } from "../git/vault-git.js";
 import { SingleUserOAuthProvider } from "./provider.js";
 import { createLoginRouter } from "./routes.js";
 
@@ -13,6 +14,14 @@ export interface OAuthHttpAppOptions {
   loginSecret: string;
   /** Register all write tools. Defaults to true here too — oauth-http-cli.ts defaults this to false at the CLI layer instead, since a public connector is a bigger attack surface (see D15). */
   enableWriteTools?: boolean;
+  /** Opt-in Vault Git capability level. */
+  gitMode?: GitMode;
+  /** Exact remote name/HTTPS URL pairs git_push may use. */
+  gitAllowedPushTargets?: GitPushTarget[];
+  /** Operator-selected vault-relative repository directory. */
+  gitRepositoryPath?: string;
+  /** Test-only Git service overrides. */
+  gitOptions?: Omit<VaultGitOptions, "allowedPushTargets" | "repositoryPath">;
 }
 
 /**
@@ -41,6 +50,10 @@ export function createOAuthHttpApp(engine: VaultEngine, options: OAuthHttpAppOpt
   const resourceMetadataUrl = getOAuthProtectedResourceMetadataUrl(resourceUrl);
   mountMcpEndpoint(app, engine, requireBearerAuth({ verifier: provider, resourceMetadataUrl }), {
     enableWriteTools: options.enableWriteTools,
+    gitMode: options.gitMode,
+    gitAllowedPushTargets: options.gitAllowedPushTargets,
+    gitRepositoryPath: options.gitRepositoryPath,
+    gitOptions: options.gitOptions,
   });
 
   app.get("/healthz", async (_req, res) => {

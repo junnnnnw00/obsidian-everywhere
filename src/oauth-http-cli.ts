@@ -3,7 +3,12 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createOAuthHttpApp } from "./oauth/http-app.js";
 import { VaultEngine } from "./vault-engine.js";
-import { mountGuardConfigFromEnv, oauthWriteToolsEnabled, semanticSearchEnabledFromEnv } from "./env.js";
+import {
+  gitFeatureConfigFromEnv,
+  mountGuardConfigFromEnv,
+  oauthWriteToolsEnabled,
+  semanticSearchEnabledFromEnv,
+} from "./env.js";
 import { resolveDbPath } from "./vault/db-path.js";
 
 function resolveConfig(): { vaultDir: string; dbPath: string; port: number; issuerUrl: URL; loginSecret: string } {
@@ -32,6 +37,7 @@ function resolveConfig(): { vaultDir: string; dbPath: string; port: number; issu
 
 async function main(): Promise<void> {
   const { vaultDir, dbPath, port, issuerUrl, loginSecret } = resolveConfig();
+  const git = gitFeatureConfigFromEnv();
   if (dbPath !== ":memory:") mkdirSync(path.dirname(dbPath), { recursive: true });
 
   const engine = new VaultEngine({
@@ -49,7 +55,14 @@ async function main(): Promise<void> {
       "Write tools are disabled by default on the public OAuth connector. Set OAUTH_ENABLE_WRITE_TOOLS=true to enable them.",
     );
   }
-  const app = createOAuthHttpApp(engine, { issuerUrl, loginSecret, enableWriteTools });
+  const app = createOAuthHttpApp(engine, {
+    issuerUrl,
+    loginSecret,
+    enableWriteTools,
+    gitMode: git.mode,
+    gitRepositoryPath: git.repositoryPath,
+    gitAllowedPushTargets: git.allowedPushTargets,
+  });
   const httpServer = app.listen(port, () => {
     console.error(
       `obsidian-everywhere OAuth HTTP server listening on :${port} (issuer: ${issuerUrl}, vault: ${vaultDir})`,

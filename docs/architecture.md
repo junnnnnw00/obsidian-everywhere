@@ -1,10 +1,12 @@
 # Architecture
 
 Obsidian Everywhere is a graph and local semantic-context server, not a
-generic file server. The design question at every layer is "does this let an
-agent reason about the vault as connected knowledge," not merely "can it read
-a file." The same engine is exposed locally or through the guarded Remote
-Vault Bridge; the transport does not change the vault model.
+generic file server or remote shell. The design question at every layer is
+"does this let an agent reason about the vault as connected knowledge," not
+merely "can it read a file." The same engine is exposed locally or through the
+guarded Remote Vault Bridge; the transport does not change the vault model. An
+opt-in Git boundary adds a small set of reviewable repository operations
+without exposing arbitrary Git commands.
 
 ```
 ┌───────────────────────────────────────────────────────────┐
@@ -17,6 +19,9 @@ Vault Bridge; the transport does not change the vault model.
 │                                                             │
 │  MCP Tool Layer (src/mcp) — graph-native tools, shared      │
 │  by every transport                                        │
+│                                                             │
+│  Opt-in Vault Git boundary (src/git)                         │
+│   selected-root reads → preview → approved commit / HTTPS push │
 │                                                             │
 │  Transport A: stdio (src/cli.ts)            ← local Claude  │
 │  Transport B: Streamable HTTP (src/http)    ← remote bridge │
@@ -157,14 +162,20 @@ DECISIONS.md D24.
 
 ## MCP Tool Layer (`src/mcp/tools.ts`, `src/mcp/server.ts`)
 
-Twenty-two read tools are always available and nineteen write tools can be enabled,
-for 41 total. Their schemas and behavior are shared across transports. Read
-tools cover graph navigation, full-text and semantic retrieval,
-structured/paginated note reads, explicit listing, regex search, persisted
-Obsidian settings, mount status, and static Base validation. Write tools cover
-creation/append, lifecycle operations, guarded partial edits, frontmatter/tag
-changes, dry-run/rollback bulk operations, and persisted Obsidian
-configuration.
+Twenty-two core read tools are always available and nineteen ordinary write
+tools can be enabled, for 41 core tools. Their schemas and behavior are shared
+across transports. Read tools cover graph navigation, full-text and semantic
+retrieval, structured/paginated note reads, explicit listing, regex search,
+persisted Obsidian settings, mount status, and static Base validation. Write
+tools cover creation/append, lifecycle operations, guarded partial edits,
+frontmatter/tag changes, dry-run/rollback bulk operations, and persisted
+Obsidian configuration.
+
+The Git mode conditionally adds three read tools (`git_status`, `git_diff`,
+`git_log`), then `git_commit`, then `git_push`: 44, 45, or 46 tools when
+ordinary writes are enabled. With the ordinary write gate closed, Git
+`commit`/`push` modes expose only the three reads, for 25 total. The mode itself
+defaults to `off`, leaving the original tool surface unchanged.
 
 The runtime defaults to a low-memory profile. Graph, SQLite/FTS, document
 extraction, and every non-semantic tool remain enabled; the transformer-backed
@@ -193,6 +204,102 @@ waiting on the filesystem watcher. See DECISIONS.md D15 for why they're
 enabled by default on stdio/bearer-HTTP but disabled by default on the
 public OAuth transport.
 
+## Vault Git boundary (`src/git/vault-git.ts`)
+
+Vault Git is a separate live-filesystem boundary rather than an extension of
+the note index. `src/mcp/server.ts` registers it only when
+`OBSIDIAN_EVERYWHERE_GIT_MODE` is `read`, `commit`, or `push`; the service
+constructs fixed Git subprocess arguments with `shell: false`. Git status,
+bounded diff, and local log are annotated read-only. Commit is a destructive
+local write, while push is additionally marked as an open-world operation.
+
+Every Git call first passes the same immediate Mount Guard check used by write
+tools. Unlike stale indexed note reads, Git operations require the live vault
+and fail closed while a guarded mount is unavailable or reconciling.
+
+Repository identity is intentionally strict. At startup,
+`OBSIDIAN_EVERYWHERE_GIT_REPO_PATH` selects one safe vault-relative real
+directory and defaults to `.`. This is operator configuration and is never an
+MCP tool argument. The graph/index engine continues to cover the full vault;
+only Git operations use the selected repository root.
+
+- the configured repository root itself must contain a normal local `.git`
+  directory;
+- Git's canonical top-level path must equal the canonical selected repository
+  path;
+- the Git directory and common directory must remain inside that `.git` tree;
+- bare repositories, parent discovery, linked worktrees, submodule roots,
+  symlinked repository path components, symlinked/external core metadata,
+  alternate object stores, and unsafe object/ref/log layouts are rejected for
+  all Git tools;
+- commit and push additionally reject shallow history, sparse checkouts,
+  per-worktree Git configuration, grafts/replacement refs, detached branches,
+  and in-progress history operations.
+
+Caller paths pass a Git-specific selected-repository-relative validator.
+Absolute paths,
+traversal, pathspec magic, control characters, hidden/excluded/sensitive paths,
+directories, symlinks, and unmerged entries are rejected. Commit paths must
+resolve to regular-file entries or explicit deletions. Git receives literal path
+arguments only. Read operations disable optional locks, fsmonitor, submodule
+recursion, external diffs, and textconv, and cap runtime/output. Untracked
+content is exposed only when `git_diff` receives explicit safe paths in `head`
+mode.
+
+Ordinary note, graph, search, and file tool paths remain vault-relative. For a
+vault at `/Volumes/SanDisk/jwhong` with
+`OBSIDIAN_EVERYWHERE_GIT_REPO_PATH=DSLab`, a Git path `README.md` resolves below
+`/Volumes/SanDisk/jwhong/DSLab`, while an ordinary note path is still resolved
+below `/Volumes/SanDisk/jwhong`.
+
+`git_commit` and `git_push` each implement a two-step protocol in one MCP tool.
+`action: "preview"` records a state-bound random UUID in memory for five
+minutes; `action: "execute"` accepts only that UUID, removes it on the first
+attempt, recomputes the complete plan, and aborts if state changed. The approval
+is scoped to that MCP server/session and disappears on server restart or when a
+new MCP session is created. The UUID is a time-of-check/time-of-use and review
+primitive, not a replacement for transport authentication or explicit human
+confirmation.
+
+The canonical configured vault, selected repository, and `.git` identities are
+captured at server construction and verified before every Git subprocess.
+Approval state also carries that boundary fingerprint. Directory replacement,
+mount identity change, or a newly introduced symlink therefore fails closed
+instead of redirecting a previously configured Git capability.
+
+Commit messages are single-line and secret-scanned. Preview binds the current
+branch/ref, old `HEAD`, message, exact selected and rename paths, selected
+content, and the exact proposed tree built with a temporary index. Execution
+rebuilds that tree, creates an unsigned commit without hooks, and advances the
+branch with an expected-old-value `update-ref`; unrelated staged changes are not
+included. Clean filters (including LFS), signing, hidden paths, suspected
+credentials, and unbounded content are refused.
+
+Push requires `OBSIDIAN_EVERYWHERE_GIT_MODE=push`, the normal write gate, and an
+operator-provided `OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES` set of exact
+`name=https://host/path.git` mappings. It accepts no URL, branch, credential, or
+refspec from the caller, and mapped URLs cannot contain credentials, queries, or
+fragments. The current branch must already have an upstream whose remote name
+has a pinned credential-free HTTPS destination; its sole resolved push URL must
+equal that destination. Preview performs no network request, displays and binds
+the literal destination, binds the current `HEAD`, upstream ref and local-
+tracking OID, and scans at most 100 outgoing
+commits and 200 changed blobs plus commit messages and merge results, with 8 MiB
+per-blob and 32 MiB aggregate review limits. Execution revalidates the snapshot,
+uses the pinned URL literally, and pushes one fixed branch ref with an exact-OID
+`--force-with-lease` compare-and-swap guard. Unconditional force, tags, hooks,
+signing, follow-tags, and submodules remain unavailable. The remote ref is Git's
+configured `%(upstream:remoteref)`, not a target synthesized from the local
+branch name. Repository-local `http.*`, credential-helper, URL-rewrite, and
+selected-remote proxy configuration is rejected because URL-specific Git
+settings can outrank generic command-line TLS policy.
+
+There is no `git_exec`. Git aliases, hooks, clean/diff/textconv drivers, SSH
+configuration, credential helpers, and arbitrary refspecs can all cross from
+"Git argument" into local command execution or destructive remote behavior.
+Fixed operations and inputs are therefore part of the security model. See D27
+and [`git-vault.md`](git-vault.md).
+
 ## Transports (`src/http/`, `src/oauth/`)
 
 `mountMcpEndpoint` (`src/http/app.ts`) is the shared plumbing: one
@@ -203,3 +310,8 @@ behind different auth middleware — the transport/session bookkeeping only
 exists once. See `docs/deploy.md` for which transport is meant for which
 deployment target, and DECISIONS.md D11/D12 for why the OAuth provider is
 deliberately minimal and why there are three separate CLI entrypoints.
+
+Git capability is passed through the same three entrypoints. Stdio and bearer
+HTTP require the Git mode plus their ordinary-write state for commit/push;
+OAuth requires the Git mode plus its explicitly enabled
+`OAUTH_ENABLE_WRITE_TOOLS` gate. Read mode never adds network access.

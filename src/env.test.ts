@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  gitFeatureConfigFromEnv,
   mountGuardConfigFromEnv,
   oauthWriteToolsEnabled,
   semanticSearchEnabledFromEnv,
@@ -13,6 +14,9 @@ const ORIGINAL_MOUNT_GUARD = process.env.OBSIDIAN_EVERYWHERE_MOUNT_GUARD;
 const ORIGINAL_MOUNT_SENTINEL = process.env.OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL;
 const ORIGINAL_MOUNT_RECHECK = process.env.OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS;
 const ORIGINAL_SEMANTIC = process.env.OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC;
+const ORIGINAL_GIT_MODE = process.env.OBSIDIAN_EVERYWHERE_GIT_MODE;
+const ORIGINAL_GIT_REMOTES = process.env.OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES;
+const ORIGINAL_GIT_REPO_PATH = process.env.OBSIDIAN_EVERYWHERE_GIT_REPO_PATH;
 
 afterEach(() => {
   if (ORIGINAL_READONLY === undefined) delete process.env.OBSIDIAN_EVERYWHERE_READONLY;
@@ -29,6 +33,12 @@ afterEach(() => {
   else process.env.OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS = ORIGINAL_MOUNT_RECHECK;
   if (ORIGINAL_SEMANTIC === undefined) delete process.env.OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC;
   else process.env.OBSIDIAN_EVERYWHERE_ENABLE_SEMANTIC = ORIGINAL_SEMANTIC;
+  if (ORIGINAL_GIT_MODE === undefined) delete process.env.OBSIDIAN_EVERYWHERE_GIT_MODE;
+  else process.env.OBSIDIAN_EVERYWHERE_GIT_MODE = ORIGINAL_GIT_MODE;
+  if (ORIGINAL_GIT_REMOTES === undefined) delete process.env.OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES;
+  else process.env.OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES = ORIGINAL_GIT_REMOTES;
+  if (ORIGINAL_GIT_REPO_PATH === undefined) delete process.env.OBSIDIAN_EVERYWHERE_GIT_REPO_PATH;
+  else process.env.OBSIDIAN_EVERYWHERE_GIT_REPO_PATH = ORIGINAL_GIT_REPO_PATH;
 });
 
 describe("semanticSearchEnabledFromEnv", () => {
@@ -105,4 +115,65 @@ describe("oauthWriteToolsEnabled (public OAuth connector — inverted default)",
     process.env.OAUTH_ENABLE_WRITE_TOOLS = "true";
     expect(oauthWriteToolsEnabled()).toBe(true);
   });
+});
+
+describe("gitFeatureConfigFromEnv (explicit capability levels)", () => {
+  it("defaults to completely off", () => {
+    delete process.env.OBSIDIAN_EVERYWHERE_GIT_MODE;
+    delete process.env.OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES;
+    delete process.env.OBSIDIAN_EVERYWHERE_GIT_REPO_PATH;
+    expect(gitFeatureConfigFromEnv()).toEqual({ mode: "off", repositoryPath: ".", allowedPushTargets: [] });
+  });
+
+  it("supports a fixed nested repository path with read and commit", () => {
+    process.env.OBSIDIAN_EVERYWHERE_GIT_REPO_PATH = "Projects/Notes";
+    process.env.OBSIDIAN_EVERYWHERE_GIT_MODE = "read";
+    expect(gitFeatureConfigFromEnv()).toEqual({
+      mode: "read",
+      repositoryPath: "Projects/Notes",
+      allowedPushTargets: [],
+    });
+    process.env.OBSIDIAN_EVERYWHERE_GIT_MODE = "commit";
+    expect(gitFeatureConfigFromEnv()).toEqual({
+      mode: "commit",
+      repositoryPath: "Projects/Notes",
+      allowedPushTargets: [],
+    });
+  });
+
+  it("requires and deduplicates exact remote/HTTPS URL mappings in push mode", () => {
+    process.env.OBSIDIAN_EVERYWHERE_GIT_MODE = "push";
+    delete process.env.OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES;
+    expect(() => gitFeatureConfigFromEnv()).toThrow(/requires.*ALLOWED_PUSH_REMOTES/i);
+    process.env.OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES =
+      "origin=https://github.com/example/vault.git, backup=https://gitlab.com/example/vault.git,origin=https://github.com/example/vault.git";
+    expect(gitFeatureConfigFromEnv()).toEqual({
+      mode: "push",
+      repositoryPath: ".",
+      allowedPushTargets: [
+        { remote: "origin", url: "https://github.com/example/vault.git" },
+        { remote: "backup", url: "https://gitlab.com/example/vault.git" },
+      ],
+    });
+  });
+
+  it("fails fast on unknown modes or unsafe remote names", () => {
+    process.env.OBSIDIAN_EVERYWHERE_GIT_MODE = "everything";
+    expect(() => gitFeatureConfigFromEnv()).toThrow(/must be one of/i);
+    process.env.OBSIDIAN_EVERYWHERE_GIT_MODE = "push";
+    process.env.OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES = "--upload-pack=https://github.com/example/vault.git";
+    expect(() => gitFeatureConfigFromEnv()).toThrow(/invalid remote name/i);
+    process.env.OBSIDIAN_EVERYWHERE_GIT_ALLOWED_PUSH_REMOTES =
+      "origin=https://user:secret@github.com/example/vault.git";
+    expect(() => gitFeatureConfigFromEnv()).toThrow(/credential-free HTTPS/i);
+  });
+
+  it.each(["", " DSLab", "DSLab ", "../DSLab", "A/../DSLab", "A//B", "A/./B", "/tmp/repo", "C:/repo", "A\\B", "A\tB"])(
+    "rejects unsafe repository path %j",
+    (repositoryPath) => {
+      process.env.OBSIDIAN_EVERYWHERE_GIT_MODE = "read";
+      process.env.OBSIDIAN_EVERYWHERE_GIT_REPO_PATH = repositoryPath;
+      expect(() => gitFeatureConfigFromEnv()).toThrow(/repository path/i);
+    },
+  );
 });

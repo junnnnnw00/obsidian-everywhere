@@ -3,7 +3,12 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createHttpApp } from "./http/app.js";
 import { VaultEngine } from "./vault-engine.js";
-import { mountGuardConfigFromEnv, semanticSearchEnabledFromEnv, writeToolsEnabledByDefault } from "./env.js";
+import {
+  gitFeatureConfigFromEnv,
+  mountGuardConfigFromEnv,
+  semanticSearchEnabledFromEnv,
+  writeToolsEnabledByDefault,
+} from "./env.js";
 import { resolveDbPath } from "./vault/db-path.js";
 
 function resolveConfig(): { vaultDir: string; dbPath: string; port: number; bearerToken: string } {
@@ -25,6 +30,7 @@ function resolveConfig(): { vaultDir: string; dbPath: string; port: number; bear
 
 async function main(): Promise<void> {
   const { vaultDir, dbPath, port, bearerToken } = resolveConfig();
+  const git = gitFeatureConfigFromEnv();
   if (dbPath !== ":memory:") mkdirSync(path.dirname(dbPath), { recursive: true });
 
   const engine = new VaultEngine({
@@ -36,7 +42,13 @@ async function main(): Promise<void> {
   await engine.init();
   engine.watch();
 
-  const app = createHttpApp(engine, { bearerToken, enableWriteTools: writeToolsEnabledByDefault() });
+  const app = createHttpApp(engine, {
+    bearerToken,
+    enableWriteTools: writeToolsEnabledByDefault(),
+    gitMode: git.mode,
+    gitRepositoryPath: git.repositoryPath,
+    gitAllowedPushTargets: git.allowedPushTargets,
+  });
   const httpServer = app.listen(port, () => {
     console.error(`obsidian-everywhere HTTP server listening on :${port} (vault: ${vaultDir})`);
   });

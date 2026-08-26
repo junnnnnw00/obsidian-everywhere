@@ -1,7 +1,7 @@
 {
   "name": "obsidian-everywhere",
-  "version": "0.8.1",
-  "description": "Graph context and local file access for Obsidian, with guarded remote MCP access and edits.",
+  "version": "0.9.0",
+  "description": "Graph context, semantic search, guarded edits, and reviewable Git for local Obsidian vaults over MCP.",
   "mcpName": "io.github.junnnnnw00/obsidian-everywhere",
   "license": "MIT",
   "type": "module",
@@ -22,6 +22,7 @@
     "codex",
     "chatgpt",
     "knowledge-graph",
+    "git",
     "pkm",
     "obsidian-mcp",
     "mcp-server"
@@ -55,6 +56,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "memory:smoke": "npm run build && node --expose-gc scripts/memory-smoke.mjs",
+    "release:verify-version": "node scripts/verify-release-version.mjs",
     "product-hunt:prepare": "node scripts/prepare-product-hunt.mjs",
     "prepack": "npm run build"
   },
