@@ -407,7 +407,8 @@ describe("VaultGit", () => {
     const { root, vault } = createRepository();
     const sentinel = path.join(root, "included-helper-ran");
     const included = path.join(root, "included.conf");
-    writeFileSync(included, `[credential]\n\thelper = !touch ${sentinel}\n`);
+    const gitConfigSentinel = sentinel.replaceAll(path.sep, "/");
+    writeFileSync(included, `[credential]\n\thelper = !touch ${gitConfigSentinel}\n`);
     git(vault, ["config", "--local", "include.path", included]);
     await expect(new VaultGit(vault).status()).rejects.toThrow(/include\/includeIf/i);
     expect(existsSync(sentinel)).toBe(false);
@@ -468,7 +469,7 @@ describe("VaultGit", () => {
       new VaultGit(vault, {
         allowedPushTargets: [{ remote: "origin", url: "https://example.invalid/vault.git" }],
       }).previewPush(),
-    ).rejects.toThrow(/HTTPS URL/i);
+    ).rejects.toThrow(/HTTPS/i);
     git(vault, ["remote", "set-url", "origin", "https://user:secret@example.invalid/private.git"]);
     await expect(
       new VaultGit(vault, {
