@@ -332,9 +332,10 @@ unmountable path doesn't hang startup). Tune it with:
   services, do not accept an empty mount point as a ready vault. If it is
   still empty after the timeout, startup fails before the existing index can
   be replaced by an empty scan, allowing the service manager to retry. While
-  running, the same guard preserves the index during an unmount and performs
-  a full reconciliation after the mount returns. It blocks ordinary write
-  tools and every live Git tool while state is `unavailable` or `reconciling`.
+  running, the same guard preserves the index during an unmount, recreates the
+  filesystem watcher, and performs a full reconciliation after the mount
+  returns. It blocks ordinary write tools and every live Git tool while state
+  is `unavailable` or `reconciling`.
 - `OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL=.obsidian/app.json` — optional
   vault-relative path that must exist for the intended mount to be considered
   available. Strongly recommended.

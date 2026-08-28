@@ -81,7 +81,7 @@ const GIT_NETWORK_WRITE = {
 };
 
 export const SERVER_INSTRUCTIONS =
-  "Use vault_overview to orient yourself in an unfamiliar vault and vault_status when availability may have changed. Prefer get_context_bundle for broad topic context and read_note for one specific note or heading. Use read_file for attachments including PDF, DOCX, PPTX, XLSX, text/code/data files, and images; use search_files to search extracted attachment text. Use list_folder/list_notes for file enumeration, search_notes for note full-text search, and regex_search for patterns. Ordinary vault-tool paths are vault-relative; Git-tool paths are relative to the one operator-configured repository shown by git_status. read_note and read_file paginate long text; follow the reported next offset. bulk_replace defaults to dry-run and returns a rollback ID when applied. Before calling any write tool, confirm that the user intends to modify the vault; use read tools without confirmation. git_commit and git_push require a preview followed by explicit user confirmation and a one-use approval ID; never claim that a preview created a commit or contacted a remote. Mount-guard blocks live Git access and all vault writes while a removable/network vault is unavailable or reconciling.";
+  "Use vault_overview to orient yourself in an unfamiliar vault and vault_status when availability may have changed. Prefer get_context_bundle for broad topic context and read_note for one specific note or heading. Use read_file for attachments including PDF, DOCX, PPTX, XLSX, text/code/data files, and images; use search_files to search attachment filenames, paths, and extracted text. Use list_folder/list_notes for file enumeration, search_notes for note full-text search, and regex_search for patterns. Ordinary vault-tool paths are vault-relative; Git-tool paths are relative to the one operator-configured repository shown by git_status. read_note and read_file paginate long text; follow the reported next offset. bulk_replace defaults to dry-run and returns a rollback ID when applied. Before calling any write tool, confirm that the user intends to modify the vault; use read tools without confirmation. git_commit and git_push require a preview followed by explicit user confirmation and a one-use approval ID; never claim that a preview created a commit or contacted a remote. Mount-guard blocks live Git access and all vault writes while a removable/network vault is unavailable or reconciling.";
 
 export interface CreateServerOptions {
   /** Register all mutation/config write tools. Defaults to true — set to false for a read-only deployment. */
@@ -221,9 +221,9 @@ export function createServer(engine: VaultEngine, options: CreateServerOptions =
     {
       title: "Search Files",
       description:
-        "Search extracted text from non-Markdown vault files (PDF, DOCX, PPTX, XLSX, OpenDocument, EPUB, RTF, and text/code/data files). Extraction is local, cached, and incremental.",
+        "Search filenames, vault-relative paths, and extracted text from non-Markdown vault files (PDF, DOCX, PPTX, XLSX, OpenDocument, EPUB, RTF, and text/code/data files). Extraction is local, cached, and incremental.",
       inputSchema: strictSchema({
-        query: z.string().optional().describe("Full-text query. Omit to list attachments."),
+        query: z.string().optional().describe("Filename/path or full-text query. Omit to list attachments."),
         folder: z.string().optional().describe("Optional vault-relative folder scope."),
         extension: z.string().optional().describe("Optional extension filter, e.g. pdf or pptx."),
         limit: z.number().int().positive().max(100).optional().describe("Max results (default 10)."),

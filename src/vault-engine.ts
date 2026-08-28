@@ -1,10 +1,10 @@
 import type { FSWatcher } from "chokidar";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { ATTACHMENT_EXTRACTOR_VERSION, extractAttachment, type AttachmentExtraction } from "./attachments/extract.js";
 import type { MountGuardConfig } from "./env.js";
 import { VaultGraph } from "./graph/graph.js";
-import { VaultDB } from "./index/db.js";
+import { VaultDB, type FileRow } from "./index/db.js";
 import {
   defaultEmbedder,
   noteEmbeddingText,
@@ -13,7 +13,7 @@ import {
   type Embedder,
 } from "./index/embeddings.js";
 import { applyFileDelete, applyFileUpsert, fullScan, type ScanResult } from "./index/scan.js";
-import { DEFAULT_EXCLUDE_DIRS, resolveExistingVaultPath } from "./vault/paths.js";
+import { DEFAULT_EXCLUDE_DIRS, resolveExistingVaultPath, shouldExclude, toPosixPath } from "./vault/paths.js";
 import { waitForStableVaultListing } from "./vault/wait-for-mount.js";
 import { startWatcher, type WatchEvent } from "./watcher/watcher.js";
 
@@ -55,9 +55,12 @@ export class VaultEngine {
   readonly semanticSearchEnabled: boolean;
   private readonly mountGuard: MountGuardConfig;
   private watcher: FSWatcher | null = null;
+  private watchingRequested = false;
+  private watcherOnEvent: ((event: WatchEvent) => void) | undefined;
+  private cancelWatcherReadyWait: (() => void) | null = null;
   private mountTimer: NodeJS.Timeout | null = null;
   private mountState: VaultMountState;
-  private reconciliationInFlight = false;
+  private reconciliationPromise: Promise<void> | null = null;
   private lastReconciledAt: number | null = null;
 
   constructor(options: VaultEngineOptions) {
@@ -93,9 +96,7 @@ export class VaultEngine {
     this.mountState = "unavailable";
   }
 
-  private async reconcileReturnedMount(): Promise<void> {
-    if (!this.mountGuard.enabled || this.reconciliationInFlight) return;
-    this.reconciliationInFlight = true;
+  private async performReturnedMountReconciliation(): Promise<void> {
     this.mountState = "reconciling";
     try {
       await waitForStableVaultListing(this.vaultDir, { requireNonEmpty: true });
@@ -106,6 +107,12 @@ export class VaultEngine {
             : "Vault listing is unavailable or empty.",
         );
       }
+      // Filesystem watchers can remain attached to the old filesystem
+      // instance after a removable drive or network share is mounted again.
+      // Recreate an active watcher and wait for its initial directory walk
+      // before reconciling, so changes made after recovery are not silently
+      // missed by an apparently healthy long-running server.
+      await this.restartWatcherAfterMount();
       this.refreshNow();
       this.lastReconciledAt = Date.now();
       this.mountState = "healthy";
@@ -113,8 +120,19 @@ export class VaultEngine {
     } catch (err) {
       this.mountState = "unavailable";
       console.error("[obsidian-everywhere mount-guard] Reconciliation deferred:", err);
+    }
+  }
+
+  private async reconcileReturnedMount(): Promise<void> {
+    if (!this.mountGuard.enabled) return;
+    if (this.reconciliationPromise) return this.reconciliationPromise;
+
+    const reconciliation = this.performReturnedMountReconciliation();
+    this.reconciliationPromise = reconciliation;
+    try {
+      await reconciliation;
     } finally {
-      this.reconciliationInFlight = false;
+      if (this.reconciliationPromise === reconciliation) this.reconciliationPromise = null;
     }
   }
 
@@ -182,6 +200,73 @@ export class VaultEngine {
     const result = applyFileUpsert(this.db, this.vaultDir, relPath);
     this.graph.applyScanResult(this.db, result);
     return result;
+  }
+
+  /**
+   * Recover one exact vault-relative file that exists on disk but has not yet
+   * reached the index (for example during a short watcher lag). This never
+   * walks the vault, follows symlinks, or accepts an excluded/traversal path.
+   */
+  indexExistingFileIfPresent(requestedPath: string): FileRow | undefined {
+    if (this.getStatus().stale) return undefined;
+    if (this.mountGuard.enabled && !this.mountIsAvailable()) {
+      this.markMountUnavailable();
+      return undefined;
+    }
+
+    const rel = requestedPath.trim().split("\\").join("/").normalize("NFC");
+    if (!rel || rel.startsWith("/") || /^[A-Za-z]:/.test(rel)) return undefined;
+    const segments = rel.split("/");
+    if (segments.some((segment) => !segment || segment === "." || segment === "..")) return undefined;
+    if (shouldExclude(rel, this.excludeDirs)) return undefined;
+
+    try {
+      const absPath = resolveExistingVaultPath(this.vaultDir, rel);
+      const absVault = path.resolve(this.vaultDir);
+      const lexicalRel = path.relative(absVault, path.resolve(absPath));
+      if (!lexicalRel || lexicalRel.startsWith(`..${path.sep}`) || path.isAbsolute(lexicalRel)) return undefined;
+
+      // walkVaultFiles ignores symlink entries. Match that behavior here for
+      // every component, not only the final file: otherwise `vault/link/file`
+      // could follow an in-vault directory symlink to a file outside the
+      // operator-approved vault.
+      let cursor = absVault;
+      let finalIsFile = false;
+      for (const segment of lexicalRel.split(path.sep)) {
+        cursor = path.join(cursor, segment);
+        const entry = lstatSync(cursor);
+        if (entry.isSymbolicLink()) return undefined;
+        finalIsFile = entry.isFile();
+      }
+      if (!finalIsFile) return undefined;
+
+      const realVault = realpathSync.native(absVault);
+      const realFile = realpathSync.native(absPath);
+      const realRel = path.relative(realVault, realFile);
+      if (!realRel || realRel.startsWith(`..${path.sep}`) || path.isAbsolute(realRel)) return undefined;
+      // realpath also recovers the actual on-disk casing on case-insensitive
+      // filesystems, preventing duplicate DB identities for Final/FINAL.
+      const diskRel = toPosixPath(realRel);
+      if (shouldExclude(diskRel, this.excludeDirs)) return undefined;
+
+      // Keep the targeted upsert under the same before/after mount invariant
+      // as a full reconciliation. Apply the graph change only after the outer
+      // DB transaction commits, so a disappearing mount cannot leave the
+      // persistent index rolled back but the in-memory graph advanced.
+      const indexed = this.db.transaction(() => {
+        const scanResult = applyFileUpsert(this.db, this.vaultDir, diskRel);
+        if (this.mountGuard.enabled && !this.mountIsAvailable()) {
+          this.markMountUnavailable();
+          throw new Error("Vault mount became unavailable during exact-file indexing.");
+        }
+        return { scanResult, file: this.db.getFileByPath(diskRel.normalize("NFC")) };
+      });
+      this.graph.applyScanResult(this.db, indexed.scanResult);
+      return indexed.file;
+    } catch {
+      if (this.mountGuard.enabled && !this.mountIsAvailable()) this.markMountUnavailable();
+      return undefined;
+    }
   }
 
   /** Remove one file from the index immediately after a write tool deletes it. */
@@ -307,9 +392,8 @@ export class VaultEngine {
     };
   }
 
-  watch(onEvent?: (event: WatchEvent) => void): void {
-    if (this.watcher) return;
-    this.watcher = startWatcher({
+  private createWatcher(): FSWatcher {
+    return startWatcher({
       vaultDir: this.vaultDir,
       db: this.db,
       graph: this.graph,
@@ -321,8 +405,60 @@ export class VaultEngine {
             return false;
           }
         : undefined,
-      onEvent,
+      onEvent: this.watcherOnEvent,
     });
+  }
+
+  private async restartWatcherAfterMount(): Promise<void> {
+    if (!this.watchingRequested) return;
+    if (this.watcher) {
+      const previous = this.watcher;
+      this.watcher = null;
+      await previous.close();
+    }
+    if (!this.watchingRequested) return;
+
+    const replacement = this.createWatcher();
+    this.watcher = replacement;
+    try {
+      const readyState = await new Promise<"ready" | "cancelled">((resolve, reject) => {
+        const cleanup = (): void => {
+          replacement.off("ready", onReady);
+          replacement.off("error", onError);
+          if (this.cancelWatcherReadyWait === onCancel) this.cancelWatcherReadyWait = null;
+        };
+        const onReady = (): void => {
+          cleanup();
+          resolve("ready");
+        };
+        const onError = (error: unknown): void => {
+          cleanup();
+          reject(error);
+        };
+        const onCancel = (): void => {
+          cleanup();
+          resolve("cancelled");
+        };
+        this.cancelWatcherReadyWait = onCancel;
+        replacement.once("ready", onReady);
+        replacement.once("error", onError);
+      });
+      if (readyState === "cancelled" || !this.watchingRequested) {
+        await replacement.close();
+        if (this.watcher === replacement) this.watcher = null;
+      }
+    } catch (error) {
+      await replacement.close();
+      if (this.watcher === replacement) this.watcher = null;
+      throw error;
+    }
+  }
+
+  watch(onEvent?: (event: WatchEvent) => void): void {
+    if (this.watcher) return;
+    this.watchingRequested = true;
+    this.watcherOnEvent = onEvent;
+    this.watcher = this.createWatcher();
     if (this.mountGuard.enabled && !this.mountTimer) {
       this.mountTimer = setInterval(() => void this.checkMountNow(), this.mountGuard.recheckIntervalMs);
       this.mountTimer.unref();
@@ -330,13 +466,17 @@ export class VaultEngine {
   }
 
   async stopWatching(): Promise<void> {
+    this.watchingRequested = false;
+    this.cancelWatcherReadyWait?.();
     if (this.mountTimer) {
       clearInterval(this.mountTimer);
       this.mountTimer = null;
     }
-    if (!this.watcher) return;
-    await this.watcher.close();
+    if (this.reconciliationPromise) await this.reconciliationPromise;
+    const watcher = this.watcher;
     this.watcher = null;
+    this.watcherOnEvent = undefined;
+    if (watcher) await watcher.close();
   }
 
   async close(): Promise<void> {

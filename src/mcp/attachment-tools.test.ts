@@ -59,6 +59,7 @@ describe("attachment MCP tools", () => {
         "ppt/slides/slide2.xml": "<p:sld><a:p><a:r><a:t>Unique presentation retrieval phrase</a:t></a:r></a:p></p:sld>",
       }),
     );
+    writeFileSync(path.join(vaultDir, "~$deck.pptx"), Buffer.from("temporary Office owner file"));
     writeFileSync(
       path.join(vaultDir, "report.docx"),
       zip({
@@ -126,6 +127,64 @@ describe("attachment MCP tools", () => {
     expect(word).toContain("data.xlsx");
     expect(word).toContain("notes.txt");
     expect(engine.db.getAttachmentExtraction(engine.db.getFileByPath("paper.pdf")!.id)?.status).toBe("extracted");
+  });
+
+  it("applies attachment scope before the FTS limit", async () => {
+    const needle = "scopefilterneedle";
+    for (let index = 0; index < 75; index++) {
+      writeFileSync(
+        path.join(vaultDir, `${needle}-${String(index).padStart(2, "0")}.md`),
+        `# ${needle}\n\n${needle} ${needle}`,
+      );
+    }
+    writeFileSync(path.join(vaultDir, "z-attachment.txt"), needle);
+    engine.refreshNow();
+    await engine.ensureAttachmentExtracted(engine.db.getFileByPath("z-attachment.txt")!.id);
+
+    const result = textOf(
+      (await client.callTool({
+        name: "search_files",
+        arguments: { query: needle, extension: "txt", limit: 10 },
+      })) as any,
+    );
+    expect(result).toContain("z-attachment.txt");
+  });
+
+  it("finds attachments by filename without treating punctuation as invalid FTS syntax", async () => {
+    const result = textOf(
+      (await client.callTool({
+        name: "search_files",
+        arguments: { query: "DECK.PPTX", extension: "pptx", limit: 20 },
+      })) as any,
+    );
+    expect(result).toContain("deck.pptx");
+    expect(result).toContain("Match**: filename/path");
+    expect(result).not.toContain("fts5:");
+  });
+
+  it("skips Office owner files and removes a legacy indexed row on reconciliation", () => {
+    expect(engine.db.getFileByPath("~$deck.pptx")).toBeUndefined();
+    engine.indexFileNow("~$deck.pptx");
+    expect(engine.db.getFileByPath("~$deck.pptx")).toBeDefined();
+    engine.refreshNow();
+    expect(engine.db.getFileByPath("~$deck.pptx")).toBeUndefined();
+  });
+
+  it("recovers an exact attachment path from disk when the watcher has not indexed it yet", async () => {
+    writeFileSync(
+      path.join(vaultDir, "late-deck.pptx"),
+      zip({
+        "[Content_Types].xml": "<Types/>",
+        "ppt/slides/slide1.xml": "<p:sld><a:p><a:r><a:t>Late watcher recovery phrase</a:t></a:r></a:p></p:sld>",
+      }),
+    );
+
+    expect(engine.db.getFileByPath("late-deck.pptx")).toBeUndefined();
+    const result = textOf(
+      (await client.callTool({ name: "read_file", arguments: { path: "late-deck.pptx", slide: 1 } })) as any,
+    );
+    expect(result).toContain("Late watcher recovery phrase");
+    expect(engine.db.getFileByPath("late-deck.pptx")).toBeDefined();
   });
 
   it("returns image content as a native MCP image block", async () => {

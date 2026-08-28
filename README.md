@@ -165,10 +165,10 @@ after reviewing the safety model in the **[Vault Git guide](docs/git-vault.md)**
 | `vault_overview` | Note counts, top tags, PageRank hub notes, recently modified — a starting orientation |
 | `vault_status` | Mount availability, index freshness, write availability, and last full reconciliation |
 | `search_notes` | Full-text search with tag/folder filters (with a trigram fallback for CJK substring matches unicode61 alone would miss — see DECISIONS.md D9), each result annotated with link counts and tags |
-| `search_files` | Search extracted text across PDF, Office/OpenDocument, EPUB, RTF, text/code/data, and Markdown-linked attachments |
+| `search_files` | Search filenames, vault-relative paths, and locally extracted text across PDF, Office/OpenDocument, EPUB, RTF, text/code/data, and other attachments |
 | `semantic_search` | Optional meaning-based search via local embeddings (`multilingual-e5-small`, no external service); disabled in the default low-memory mode |
 | `read_note` | Structured content/frontmatter/links/tags plus line pagination; optional heading-scoped read |
-| `read_file` | Read any indexed vault file: extracted document text with page/slide/sheet selection, or native image content for capable MCP clients |
+| `read_file` | Read any vault file: extracted document text with page/slide/sheet selection, or native image content for capable MCP clients; an exact on-disk path self-heals short watcher lag |
 | `list_notes` | Explicit folder-aware note listing with pagination; optionally projects named frontmatter fields (e.g. `status`, `project`) per note |
 | `list_folder` | Immediate child folders, notes, and attachments |
 | `regex_search` | JavaScript-regex search with file, line, and excerpt |

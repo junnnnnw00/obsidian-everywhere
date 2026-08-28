@@ -151,9 +151,10 @@ state machine (`disabled`, `healthy`, `unavailable`, `reconciling`) instead of
 putting deployment-specific `/Volumes` behavior in the MCP or watcher layer.
 The watcher asks the engine whether an unlink is safe; the engine preserves the
 persistent index on mount loss, blocks every registered write tool while stale,
-and performs a stable full reconciliation when the mount returns. Guarded full
-scans remain inside an outer SQLite transaction until a post-scan mount check
-passes, so a mid-scan disconnect rolls the index back. A
+replaces any active filesystem watcher after the mount returns, waits for that
+watcher's initial walk, and then performs a stable full reconciliation.
+Guarded full scans remain inside an outer SQLite transaction until a post-scan
+mount check passes, so a mid-scan disconnect rolls the index back. A
 vault-relative sentinel is optional but recommended because "directory is
 non-empty" alone cannot distinguish the intended share from an exposed fallback
 mount point. Static bearer authentication is acceptable on a public endpoint
@@ -182,7 +183,13 @@ vault merely to identify it.
 **Decision:** Index every non-excluded vault file as before, and add an
 `attachment_extractions` cache keyed by file hash plus extractor version.
 `read_file` extracts one requested file immediately; `search_files` processes a
-bounded queue of at most ten stale attachments per call. Extraction is always
+bounded queue of at most ten stale attachments per call and combines
+case-insensitive filename/path matches with extracted-text results. Attachment,
+folder, and extension predicates are applied inside the FTS query before its
+limit, so note matches cannot crowd attachment results out. An exact safe
+`read_file` path may synchronously add one missed on-disk file to the index;
+the recovery rejects traversal, excluded paths, and every symlink component,
+and obeys mount-guard's pre/post availability checks. Extraction is always
 sequential. PDF uses `pdfjs-dist`; OOXML/OpenDocument/EPUB containers use the
 exact `adm-zip` dependency and narrowly scoped XML text extraction. Plain
 text/code/data, RTF, and common images are handled directly. Source size, PDF

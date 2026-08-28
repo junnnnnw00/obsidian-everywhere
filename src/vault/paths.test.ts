@@ -77,6 +77,14 @@ describe("shouldExclude", () => {
     expect(shouldExclude(".well-hidden/Note.md")).toBe(true);
   });
 
+  it("excludes Microsoft Office owner files without excluding ordinary tilde names", () => {
+    expect(shouldExclude("DSLab/~$final.pptx")).toBe(true);
+    expect(shouldExclude("Reports/~$quarterly report.docx")).toBe(true);
+    expect(shouldExclude("Reports/~$budget.md")).toBe(false);
+    expect(shouldExclude("Reports/~draft.docx")).toBe(false);
+    expect(shouldExclude("~Archive/real deck.pptx")).toBe(false);
+  });
+
   it("does not exclude ordinary notes", () => {
     expect(shouldExclude("PROVE/Some Note.md")).toBe(false);
     expect(shouldExclude("Note.md")).toBe(false);

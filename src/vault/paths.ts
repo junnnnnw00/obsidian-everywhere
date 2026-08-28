@@ -31,10 +31,22 @@ export function extOf(relPath: string): string {
  * non-APFS/HFS+ volume (exFAT, FAT32 — the common case for external
  * drives): without this, those sidecars end up indexed as real notes,
  * since they end in `.md` but their content is binary resource-fork data.
+ * Microsoft Office owner/lock files (`~$deck.pptx`, `~$report.docx`, etc.)
+ * are excluded as well: they are temporary metadata, not readable documents,
+ * and otherwise appear as noisy extraction failures while a file is open.
  */
 export function shouldExclude(relPath: string, excludeDirs: string[] = DEFAULT_EXCLUDE_DIRS): boolean {
   const segments = relPath.split("/");
-  return segments.some((seg) => seg.startsWith(".") || excludeDirs.includes(seg) || seg.includes(".oe-tmp-"));
+  const basename = segments.at(-1) ?? "";
+  const isOfficeOwnerFile =
+    basename.startsWith("~$") &&
+    /\.(?:doc|docx|docm|dot|dotx|dotm|xls|xlsx|xlsm|xlsb|xlt|xltx|xltm|ppt|pptx|pptm|pot|potx|potm|pps|ppsx|ppsm)$/i.test(
+      basename,
+    );
+  return (
+    isOfficeOwnerFile ||
+    segments.some((seg) => seg.startsWith(".") || excludeDirs.includes(seg) || seg.includes(".oe-tmp-"))
+  );
 }
 
 /**

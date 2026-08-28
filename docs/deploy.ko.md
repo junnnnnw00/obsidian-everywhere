@@ -137,8 +137,8 @@ vault가 외장 드라이브나 네트워크 마운트에 있고 서버가 부�
 - `OBSIDIAN_EVERYWHERE_MOUNT_POLL_MS` — 목록을 다시 읽는 간격 (기본값 `200`)
 - `OBSIDIAN_EVERYWHERE_MOUNT_GUARD=true` — 자동 실행 서비스용 Beta
   보호입니다. 시작 시 빈 mount로 기존 인덱스를 덮어쓰지 않고, 실행 중
-  mount가 사라지면 인덱스를 보존하고 쓰기를 차단하며, 복귀 후 전체
-  재조정합니다.
+  mount가 사라지면 인덱스를 보존하고 쓰기를 차단하며, 복귀 후 filesystem
+  watcher를 다시 만들고 전체 재조정합니다.
 - `OBSIDIAN_EVERYWHERE_MOUNT_SENTINEL=.obsidian/app.json` — 의도한 mount가
   연결됐을 때 반드시 존재해야 하는 vault-relative 경로. 강력 권장합니다.
 - `OBSIDIAN_EVERYWHERE_MOUNT_RECHECK_MS` — 실행 중 mount 확인 간격

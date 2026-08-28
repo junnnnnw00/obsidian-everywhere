@@ -79,9 +79,13 @@ through the tool layer.
 
 Non-Markdown files use a separate `attachment_extractions` cache keyed by the
 indexed file hash and extractor version. `read_file` extracts the requested
-file on demand; `search_files` advances a bounded, sequential extraction queue
-and searches the same FTS5 index. PDF, OOXML, OpenDocument, EPUB, RTF, plain
-text/code/data, and common images are handled locally. Inputs, ZIP entries,
+file on demand; an exact safe on-disk path can repair one file that a watcher
+has not indexed yet, without walking the vault or following symlinks.
+`search_files` matches filenames/paths, advances a bounded sequential
+extraction queue, and searches the same FTS5 index. Attachment, folder, and
+extension scope is applied before the result limit. PDF, OOXML, OpenDocument,
+EPUB, RTF, plain text/code/data, and common images are handled locally. Inputs,
+ZIP entries,
 extracted character counts, and inline image sizes are capped so a large or
 malformed attachment cannot turn a request into an unbounded memory load.
 Defaults are 64 MiB per source attachment, 48 MiB per PDF, and 32 MiB per
@@ -156,7 +160,8 @@ When the opt-in mount guard is enabled, `VaultEngine` also owns the vault
 availability state machine. Before applying an unlink, the platform-neutral
 watcher asks the engine whether the mount is available. An unavailable mount
 preserves the existing index, marks reads stale, and blocks MCP writes. The
-engine waits for a returning listing to stabilize, runs one transactional
+engine waits for a returning listing to stabilize, closes and recreates an
+active watcher (waiting for its initial directory walk), runs one transactional
 `fullScan`, reloads the graph, and only then re-enables writes. See
 DECISIONS.md D24.
 

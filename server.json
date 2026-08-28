@@ -3,7 +3,7 @@
   "name": "io.github.junnnnnw00/obsidian-everywhere",
   "title": "Obsidian Everywhere",
   "description": "Graph context, semantic search, guarded edits, and reviewable Git for local Obsidian vaults.",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "repository": {
     "url": "https://github.com/junnnnnw00/obsidian-everywhere",
     "source": "github",
@@ -21,7 +21,7 @@
     {
       "registryType": "npm",
       "identifier": "obsidian-everywhere",
-      "version": "0.9.1",
+      "version": "0.9.2",
       "runtimeHint": "npx",
       "runtimeArguments": [
         {

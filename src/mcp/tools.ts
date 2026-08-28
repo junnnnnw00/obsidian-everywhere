@@ -26,7 +26,16 @@ export function resolveNoteArg(engine: VaultEngine, input: string): FileRow | un
 
 /** Resolve any indexed vault file, including attachments. */
 export function resolveFileArg(engine: VaultEngine, input: string): FileRow | undefined {
-  return resolveNoteArg(engine, input);
+  const indexed = resolveNoteArg(engine, input);
+  if (indexed) return indexed;
+
+  // A filesystem watcher is eventually consistent. If the caller supplied
+  // an exact vault-relative path that already exists, recover that one file
+  // immediately instead of incorrectly reporting it missing until the next
+  // watcher event or process restart.
+  const exact = engine.indexExistingFileIfPresent(input);
+  if (exact) return exact;
+  return input.toLowerCase().endsWith(".md") ? undefined : engine.indexExistingFileIfPresent(`${input}.md`);
 }
 
 export function vaultOverview(engine: VaultEngine): string {
@@ -87,7 +96,11 @@ export function searchNotes(engine: VaultEngine, args: SearchNotesArgs): string 
   let candidates: FileRow[];
 
   if (args.query && args.query.trim().length > 0) {
-    const hits = engine.db.search(args.query.trim(), Math.max(limit * 3, 30));
+    const folderPrefix = args.folder ? `${args.folder.replace(/^\/+|\/+$/g, "")}/` : undefined;
+    const hits = engine.db.search(args.query.trim(), Math.max(limit * 3, 30), {
+      isMarkdown: true,
+      folderPrefix,
+    });
     candidates = hits
       .map((h) => engine.db.getFileByPath(h.path))
       .filter((f): f is FileRow => f !== undefined && f.is_markdown === 1);
@@ -225,7 +238,7 @@ export interface SearchFilesArgs {
   limit?: number;
 }
 
-/** Full-text search over extracted attachment content (PDF/Office/text/etc.). */
+/** Filename/path and full-text search over attachments (PDF/Office/text/etc.). */
 export async function searchFiles(engine: VaultEngine, args: SearchFilesArgs): Promise<string> {
   const limit = args.limit ?? 10;
   // Sequential, bounded extraction keeps one search call from turning into a
@@ -234,16 +247,64 @@ export async function searchFiles(engine: VaultEngine, args: SearchFilesArgs): P
   const folder = args.folder?.replace(/^\/+|\/+$/g, "");
   const extension = args.extension?.replace(/^\./, "").toLowerCase();
   const query = args.query?.trim();
-  const hits = query ? engine.db.search(query, Math.max(limit * 5, 50)) : [];
+  const searchFilter = {
+    isMarkdown: false,
+    folderPrefix: folder ? `${folder}/` : undefined,
+    extensionSuffix: extension ? `.${extension}` : undefined,
+  };
+  let hits: ReturnType<VaultEngine["db"]["search"]> = [];
+  if (query) {
+    const searchLimit = Math.max(limit * 5, 50);
+    try {
+      hits = engine.db.search(query, searchLimit, searchFilter);
+    } catch {
+      // search_files accepts ordinary filenames as well as FTS expressions.
+      // Punctuation such as the dot in "final.pptx" is invalid bare FTS5
+      // syntax, so retry it as a literal phrase instead of returning an MCP
+      // error. A tokenless literal (for example ".") simply has no text hit.
+      try {
+        hits = engine.db.search(`"${query.replaceAll('"', '""')}"`, searchLimit, searchFilter);
+      } catch {
+        hits = [];
+      }
+    }
+  }
   const snippets = new Map(hits.map((hit) => [hit.path, hit.snippet]));
-  let files = query
-    ? hits.map((hit) => engine.db.getFileByPath(hit.path)).filter((file): file is FileRow => Boolean(file))
-    : engine.db.getAllFiles();
-  files = files
+  const scopedFiles = engine.db
+    .getAllFiles()
     .filter((file) => file.is_markdown === 0)
     .filter((file) => !folder || file.path.startsWith(`${folder}/`))
-    .filter((file) => !extension || file.path.toLowerCase().endsWith(`.${extension}`))
-    .slice(0, limit);
+    .filter((file) => !extension || file.path.toLowerCase().endsWith(`.${extension}`));
+
+  let files = scopedFiles;
+  const pathMatches = new Set<string>();
+  if (query) {
+    const queryKey = query.normalize("NFC").toLowerCase();
+    const rankPathMatch = (file: FileRow): number => {
+      const pathKey = file.path.normalize("NFC").toLowerCase();
+      const basename = pathKey.split("/").pop() ?? pathKey;
+      const stem = basenameNoExt(basename);
+      if (pathKey === queryKey) return 0;
+      if (basename === queryKey) return 1;
+      if (stem === queryKey) return 2;
+      if (basename.startsWith(queryKey)) return 3;
+      return 4;
+    };
+    const byPath = scopedFiles
+      .filter((file) => file.path.normalize("NFC").toLowerCase().includes(queryKey))
+      .sort((a, b) => rankPathMatch(a) - rankPathMatch(b) || a.path.localeCompare(b.path));
+    byPath.forEach((file) => pathMatches.add(file.path));
+
+    const scopedByPath = new Map(scopedFiles.map((file) => [file.path, file]));
+    const byContent = hits.map((hit) => scopedByPath.get(hit.path)).filter((file): file is FileRow => Boolean(file));
+    const seen = new Set<string>();
+    files = [...byPath, ...byContent].filter((file) => {
+      if (seen.has(file.path)) return false;
+      seen.add(file.path);
+      return true;
+    });
+  }
+  files = files.slice(0, limit);
 
   const lines = [`# File Search Results (${files.length})`, ""];
   if (extraction.remaining > 0) {
@@ -261,6 +322,7 @@ export async function searchFiles(engine: VaultEngine, args: SearchFilesArgs): P
     lines.push(`## [[${file.path}]]`);
     lines.push(`- **Type**: ${cached?.mime_type ?? "not extracted"}`);
     lines.push(`- **Status**: ${cached?.status ?? "pending"}`);
+    if (pathMatches.has(file.path)) lines.push("- **Match**: filename/path");
     const snippet = snippets.get(file.path);
     if (snippet) lines.push(`- **Match**: ${snippet}`);
     if (cached?.error) lines.push(`- **Note**: ${cached.error}`);
@@ -668,7 +730,7 @@ export function getContextBundle(engine: VaultEngine, args: ContextBundleArgs): 
   const tokenBudget = args.tokenBudget ?? 4000;
   let center = resolveNoteArg(engine, args.topic);
   if (!center) {
-    const hits = engine.db.search(args.topic, 1);
+    const hits = engine.db.search(args.topic, 1, { isMarkdown: true });
     center = hits[0] ? engine.db.getFileByPath(hits[0].path) : undefined;
   }
   if (!center) return `No note found matching topic: ${args.topic}`;

@@ -129,10 +129,10 @@ vault 전체 또는 그 안의 한 저장소 폴더에 대해 status·diff·log�
 | `vault_overview` | 노트 수, 주요 태그, PageRank 허브, 최근 수정 노트 확인 |
 | `vault_status` | mount 상태, 인덱스 freshness, 쓰기 가능 여부와 마지막 전체 재조정 확인 |
 | `search_notes` | 본문·제목 전문 검색과 태그·폴더 필터 (한글 등 CJK 복합어 부분검색은 trigram으로 보완 — DECISIONS.md D9 참고) |
-| `search_files` | PDF·Office/OpenDocument·EPUB·RTF·텍스트/코드/데이터 첨부파일 내용 검색 |
+| `search_files` | PDF·Office/OpenDocument·EPUB·RTF·텍스트/코드/데이터 첨부파일의 파일명·vault 상대경로·로컬 추출 내용 검색 |
 | `semantic_search` | 선택적 로컬 임베딩 기반 의미 검색 — 기본 저메모리 모드에서는 비활성화 |
 | `read_note` | `content`, frontmatter, 링크, 태그를 구조화해 반환하고 줄 단위 페이지네이션 지원 |
-| `read_file` | 모든 색인 파일 읽기 — 문서는 page/slide/sheet 선택, 이미지는 MCP 이미지로 반환 |
+| `read_file` | 모든 vault 파일 읽기 — 문서는 page/slide/sheet 선택, 이미지는 MCP 이미지로 반환하며 정확한 디스크 경로는 짧은 watcher 지연을 자동 복구 |
 | `list_notes` | 폴더 범위와 페이지네이션을 지원하는 명시적 노트 목록 |
 | `list_folder` | 한 폴더 바로 아래의 하위 폴더·노트·첨부파일 목록 |
 | `regex_search` | 파일·줄·문맥을 포함한 정규식 검색 |
@@ -352,7 +352,7 @@ npm run memory:smoke
 
 ## 프로젝트 상태
 
-현재 v0.9.1은 그래프·선택적 로컬 시맨틱 context engine, stdio·bearer HTTP·OAuth
+현재 v0.9.2는 그래프·선택적 로컬 시맨틱 context engine, stdio·bearer HTTP·OAuth
 HTTP transport, 핵심 MCP 도구 41개와 선택형 Vault Git 도구 5개, 보호된 부분·일괄 편집과 Codex·ChatGPT
 Desktop·Claude 설정을 제공합니다. Remote Vault Bridge는 정식 배포 경로이며,
 선택형 mount guard는 removable drive·NAS·container mount 환경의 피드백을

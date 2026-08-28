@@ -52,6 +52,14 @@ export interface AttachmentExtractionRow {
   updated_at: number;
 }
 
+export interface SearchFilter {
+  isMarkdown?: boolean;
+  folderPrefix?: string;
+  extensionSuffix?: string;
+}
+
+type SearchRow = { path: string; title: string | null; snippet: string };
+
 export class VaultDB {
   readonly db: Database.Database;
 
@@ -468,16 +476,41 @@ export class VaultDB {
     return row.c;
   }
 
-  search(query: string, limit = 20): { path: string; title: string | null; snippet: string }[] {
-    const primary = this.db
+  private searchTable(
+    table: "files_fts" | "files_fts_trigram",
+    query: string,
+    limit: number,
+    filter: SearchFilter,
+  ): SearchRow[] {
+    const clauses = [`${table} MATCH ?`];
+    const bindings: Array<string | number> = [query];
+    if (filter.isMarkdown !== undefined) {
+      clauses.push("f.is_markdown = ?");
+      bindings.push(filter.isMarkdown ? 1 : 0);
+    }
+    if (filter.folderPrefix) {
+      clauses.push("instr(f.path, ?) = 1");
+      bindings.push(filter.folderPrefix);
+    }
+    if (filter.extensionSuffix) {
+      clauses.push("substr(lower(f.path), -length(?)) = ?");
+      bindings.push(filter.extensionSuffix, filter.extensionSuffix.toLowerCase());
+    }
+    bindings.push(limit);
+
+    return this.db
       .prepare(
-        `SELECT f.path as path, f.title as title, snippet(files_fts, 2, '[', ']', '...', 10) as snippet
-         FROM files_fts ffts JOIN files f ON f.id = ffts.rowid
-         WHERE files_fts MATCH ?
+        `SELECT f.path as path, f.title as title, snippet(${table}, 2, '[', ']', '...', 10) as snippet
+         FROM ${table} ffts JOIN files f ON f.id = ffts.rowid
+         WHERE ${clauses.join(" AND ")}
          ORDER BY rank
          LIMIT ?`,
       )
-      .all(query, limit) as { path: string; title: string | null; snippet: string }[];
+      .all(...bindings) as SearchRow[];
+  }
+
+  search(query: string, limit = 20, filter: SearchFilter = {}): SearchRow[] {
+    const primary = this.searchTable("files_fts", query, limit, filter);
     if (primary.length >= limit) return primary;
 
     // Trigram fallback: only ever adds results the word-based query above
@@ -486,17 +519,9 @@ export class VaultDB {
     // query-syntax subset that's valid against files_fts isn't guaranteed
     // to be valid against a trigram-tokenized table; if it throws, the
     // word-based results already stand on their own.
-    let trigram: { path: string; title: string | null; snippet: string }[];
+    let trigram: SearchRow[];
     try {
-      trigram = this.db
-        .prepare(
-          `SELECT f.path as path, f.title as title, snippet(files_fts_trigram, 2, '[', ']', '...', 10) as snippet
-           FROM files_fts_trigram ffts JOIN files f ON f.id = ffts.rowid
-           WHERE files_fts_trigram MATCH ?
-           ORDER BY rank
-           LIMIT ?`,
-        )
-        .all(query, limit) as { path: string; title: string | null; snippet: string }[];
+      trigram = this.searchTable("files_fts_trigram", query, limit, filter);
     } catch {
       return primary;
     }

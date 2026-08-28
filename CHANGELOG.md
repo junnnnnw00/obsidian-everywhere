@@ -6,6 +6,31 @@ project doesn't yet follow strict semver pre-1.0.
 
 ## [Unreleased]
 
+## [0.9.2] — 2026-08-28
+
+### Changed
+
+- `search_files` now combines case-insensitive filename and vault-relative
+  path matching with locally extracted attachment text.
+- Mount Guard recreates an active filesystem watcher after a mount returns,
+  waits for its initial walk, and then performs transactional reconciliation.
+- An exact `read_file` path can safely recover one on-disk file that has not
+  reached the index yet.
+
+### Fixed
+
+- Filenames containing FTS punctuation, such as `final.pptx`, no longer fail
+  as invalid search expressions.
+- Attachment, folder, and extension filters are applied before the FTS result
+  limit, so unrelated notes cannot crowd scoped file results out.
+- Temporary Microsoft Office owner files such as `~$deck.pptx` are excluded
+  and legacy rows are removed during reconciliation.
+
+### Security
+
+- Exact-path recovery rejects traversal, excluded paths, and symlink escapes,
+  and rolls its index transaction back if Mount Guard loses the vault.
+
 ## [0.9.1] — 2026-08-26
 
 ### Fixed
@@ -278,7 +303,9 @@ Initial release. A graph-native MCP server for Obsidian vaults.
 - The OAuth provider is single-user by design, not a general identity
   system (see DECISIONS.md D11).
 
-[Unreleased]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.9.2...HEAD
+[0.9.2]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.9.1...v0.9.2
+[0.9.1]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/junnnnnw00/obsidian-everywhere/compare/v0.7.0...v0.8.0

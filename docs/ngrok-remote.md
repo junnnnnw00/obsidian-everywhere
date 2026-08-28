@@ -118,7 +118,7 @@ The Beta mount guard is opt-in. When enabled it:
 1. refuses an empty or sentinel-less mount at startup;
 2. preserves the existing index if the mount disappears at runtime;
 3. blocks all write tools while the index may be stale;
-4. fully reconciles the index when the mount returns;
+4. recreates the filesystem watcher and fully reconciles the index when the mount returns;
 5. rolls a guarded scan back if the mount disappears before it can commit.
 
 Without a sentinel, the guard falls back to a non-empty top-level directory
@@ -470,6 +470,7 @@ does not synchronize or restore another working copy.
 | 429 Too Many Requests | Repeated invalid bearer attempts | Stop the bad client, verify its header, then wait for the auth-failure window |
 | ngrok URL works in a browser but MCP fails | Wrong `/mcp` URL or Authorization header | Use `https://domain/mcp`, not just the origin |
 | `list_notes` is correct locally but wrong remotely | ngrok points to another local port/process | Inspect the ngrok `upstream.url` and Traffic Inspector |
+| An existing PDF/PPTX/DOCX is not found | The agent used note-only tools, an inexact path, or an older process missed a watcher event | Use `list_folder`/`search_files`, then `read_file` with the exact vault-relative path (for example `Projects/final.pptx`); update/restart the service if filename search is unavailable |
 | Writes say they are blocked | mount-guard is unavailable/reconciling | Do not bypass it; restore the mount and wait for reconciliation |
 | Git tools are absent | Git mode is `off`, or the process was not restarted | Set the narrowest `OBSIDIAN_EVERYWHERE_GIT_MODE` and reconnect |
 | `git_commit` / `git_push` is absent | The ordinary write gate is still off | For bearer HTTP unset `OBSIDIAN_EVERYWHERE_READONLY`; for OAuth explicitly set `OAUTH_ENABLE_WRITE_TOOLS=true` only after review |

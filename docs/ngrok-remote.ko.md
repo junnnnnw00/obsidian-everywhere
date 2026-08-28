@@ -106,7 +106,7 @@ Beta mount guard는 opt-in입니다. 활성화하면:
 1. 시작할 때 비어 있거나 sentinel이 없는 mount를 거부하고,
 2. 실행 중 mount가 사라지면 기존 인덱스를 보존하며,
 3. 인덱스가 stale할 수 있는 동안 모든 쓰기를 차단하고,
-4. mount가 돌아오면 전체 인덱스를 재조정하고,
+4. mount가 돌아오면 filesystem watcher를 다시 만들고 전체 인덱스를 재조정하며,
 5. scan 완료 전 mount가 사라지면 index transaction을 rollback합니다.
 
 sentinel이 없으면 최상위 폴더가 비어 있는지만 확인합니다. unmount 뒤 드러난
@@ -326,6 +326,7 @@ snapshot은 전체 vault backup을 대체하지 않습니다.
 | 429 Too Many Requests | 잘못된 token 반복 요청 | 잘못된 client를 중지하고 header 확인 후 rate-limit window 대기 |
 | browser에서는 URL이 열리지만 MCP 실패 | `/mcp` 경로나 Authorization header 오류 | origin이 아니라 `https://domain/mcp` 사용 |
 | 로컬 목록은 맞지만 원격 목록이 다름 | ngrok이 다른 port/process로 전달 | `upstream.url`과 Traffic Inspector 확인 |
+| 실제 PDF/PPTX/DOCX를 찾지 못함 | agent가 노트 전용 도구나 부정확한 경로를 사용했거나 이전 프로세스가 watcher event를 놓침 | `list_folder`/`search_files`로 찾은 뒤 정확한 vault 상대경로(예: `Projects/final.pptx`)로 `read_file` 호출; 파일명 검색이 없으면 서비스 update/restart |
 | 쓰기가 blocked | mount guard unavailable/reconciling | 우회하지 말고 mount 복구 후 재조정 대기 |
 | 재시작 후 URL 변경 | ephemeral endpoint 사용 | 할당된 고정 개발 domain 또는 reserved/custom domain 설정 |
 | SQLite native module version 오류 | 설치 뒤 Node version 변경 | 지원 Node version에서 dependency 재설치/rebuild |
